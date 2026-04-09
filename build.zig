@@ -11,21 +11,11 @@ pub fn build(b: *std.Build) !void {
             .author = "Evie Finch",
             .uuid = "F066C042-84E6-4A3E-AAA6-28C517AAFCD1", // Generate with uuidgen
             .version = .{ .major = 1, .minor = 0 },
-            .targetPlatforms = &.{ .basalt, .emery, .gabbro }, // Pebble platforms to build for
+            .targetPlatforms = &.{.emery}, // Pebble platforms to build for
             .watchapp = .{
                 .watchface = true,
             },
-            .resources = .{ .media = &.{
-                .{ .font = .{
-                    .name = "FONT_SLAPFACE_56",
-                    .file = "slapface.ttf",
-                } },
-                .{ .font = .{
-                    .name = "FONT_SLAPFACE_24",
-                    .file = "slapface.ttf",
-                } },
-                .{ .bitmap = .{ .name = "IMAGE_BT", .file = "bt-icon.png" } },
-            } },
+            .resources = .{ .media = &.{ .{ .bitmap = .{ .name = "IMAGE_BT", .file = "bt-icon.png" } }, .{ .bitmap = .{ .name = "IMAGE_BG", .file = "images/bg.png" } }, .{ .bitmap = .{ .name = "SPRITE_PM", .file = "images/pm.png" } }, .{ .bitmap = .{ .name = "TYPE_S", .file = "images/type-small.png" } } } },
         },
         // .pebble_sdk_path = "~/Library/Application Support/Pebble SDK/SDKs/current/",
         .root_source_file = b.path("src/main.zig"),
