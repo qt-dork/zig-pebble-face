@@ -27,7 +27,13 @@ const State = struct {
     l_digits_bitmaps: [10]?*pebble.GBitmap = undefined,
     min_digits: [4]usize = [_]usize{ 0, 0, 0, 0 },
 
-    text_layer: ?*pebble.TextLayer = null,
+    bat_layer: ?*pebble.Layer = null,
+    bat_left_bitmap: ?*pebble.GBitmap = null,
+    bat_middle_bitmap: ?*pebble.GBitmap = null,
+    bat_right_bitmap: ?*pebble.GBitmap = null,
+    bat_level: usize = 100,
+
+    day_layer: ?*pebble.TextLayer = null,
 };
 
 const DATE_DIGIT_WIDTH: i16 = 7;
@@ -60,6 +66,37 @@ const SEC_PATH_INFO: pebble.GPathInfo = .{
     .points = [_]pebble.GPoint{ .{ .x = 55, .y = 83 }, .{ .x = 52, .y = 60 }, .{ .x = 54, .y = 60 } },
 };
 
+fn battery_callback(state: pebble.BatteryChargeState) callconv(.c) void {
+    s.bat_level = state.charge_percent;
+    pebble.layer_mark_dirty(s.bat_layer);
+}
+
+const BAT_X = 108;
+const BAT_Y = 45;
+const BAT_MID = 115;
+const BAT_GAP = 122 - BAT_MID;
+
+fn battery_update_proc(_: ?*pebble.Layer, ctx: ?*pebble.GContext) callconv(.c) void {
+    const count: usize = @divTrunc(s.bat_level + 5, 10);
+    pebble.graphics_context_set_compositing_mode(ctx, pebble.GCompOpSet);
+
+    // 0 to 10
+    // 0 means 5% or lower battery
+    // 1 to 10 draws segments
+    if (count > 0) {
+        for (0..10) |i| {
+            if (i < count) {
+                // get dest
+                const x: i16 = if (i == 0) BAT_X else (BAT_MID + ((@as(i16, @intCast(i)) - 1) * BAT_GAP));
+                const point: pebble.GPoint = .{ .x = x, .y = BAT_Y };
+                const size: pebble.GSize = .{ .h = 16, .w = 10 };
+
+                pebble.graphics_draw_bitmap_in_rect(ctx, if (i == 0) s.bat_left_bitmap else if (i == 9) s.bat_right_bitmap else s.bat_middle_bitmap, .{ .origin = point, .size = size });
+            }
+        }
+    }
+}
+
 fn handle_tick(_: ?*pebble.tm, _: pebble.TimeUnits) callconv(.c) void {
     updateClock();
 }
@@ -91,6 +128,16 @@ fn updateClock() void {
     const hr: usize = @intCast(time_info.?.tm_hour);
     const min: usize = @intCast(time_info.?.tm_min);
     setMin(hr, min);
+}
+
+fn updateDay(_: ?*pebble.Layer, ctx: ?*pebble.GContext) callconv(.c) void {
+    _ = ctx; // autofix
+
+}
+
+fn setDay(day: usize) void {
+    _ = day; // autofix
+
 }
 
 fn updateDate(_: ?*pebble.Layer, ctx: ?*pebble.GContext) callconv(.c) void {
@@ -181,13 +228,19 @@ fn window_load(window: ?*pebble.Window) callconv(.c) void {
     const window_layer = pebble.window_get_root_layer(window);
     const bounds = pebble.layer_get_bounds(window_layer);
 
+    pog.debug(@src(), "Created window", .{});
+
     s.bg_bitmap = pebble.gbitmap_create_with_resource(@intFromEnum(presource.RESOURCE_IDS.IMAGE_BG));
     s.bg_bitmap_layer = pebble.bitmap_layer_create(bounds);
+
+    pog.debug(@src(), "Created BG bitmap", .{});
 
     pebble.bitmap_layer_set_compositing_mode(s.bg_bitmap_layer, pebble.GCompOpSet);
     pebble.bitmap_layer_set_bitmap(s.bg_bitmap_layer, s.bg_bitmap);
 
     pebble.layer_add_child(window_layer, pebble.bitmap_layer_get_layer(s.bg_bitmap_layer));
+
+    pog.debug(@src(), "Created BG", .{});
 
     s.pm_bitmap = pebble.gbitmap_create_with_resource(@intFromEnum(presource.RESOURCE_IDS.SPRITE_PM));
     s.pm_bitmap_layer = pebble.bitmap_layer_create(.{ .origin = .{ .x = 23, .y = 153 }, .size = .{ .h = 6, .w = 17 } });
@@ -196,6 +249,8 @@ fn window_load(window: ?*pebble.Window) callconv(.c) void {
     pebble.bitmap_layer_set_bitmap(s.pm_bitmap_layer, s.pm_bitmap);
 
     pebble.layer_add_child(window_layer, pebble.bitmap_layer_get_layer(s.pm_bitmap_layer));
+
+    pog.debug(@src(), "Created PM", .{});
 
     s.date_layer = pebble.layer_create(bounds);
     pebble.layer_set_update_proc(s.date_layer, updateDate);
@@ -208,6 +263,8 @@ fn window_load(window: ?*pebble.Window) callconv(.c) void {
         s.s_digits_bitmaps[i] = pebble.gbitmap_create_as_sub_bitmap(s.s_digits_bitmap, coords);
     }
 
+    pog.debug(@src(), "Created date", .{});
+
     s.sec_layer = pebble.layer_create(bounds);
     pebble.layer_set_update_proc(s.sec_layer, updateSec);
     pebble.layer_add_child(window_layer, s.sec_layer);
@@ -218,6 +275,8 @@ fn window_load(window: ?*pebble.Window) callconv(.c) void {
         s.m_digits_bitmaps[i] = pebble.gbitmap_create_as_sub_bitmap(s.m_digits_bitmap, coords);
     }
 
+    pog.debug(@src(), "Created sec", .{});
+
     s.min_layer = pebble.layer_create(bounds);
     pebble.layer_set_update_proc(s.min_layer, updateMin);
     pebble.layer_add_child(window_layer, s.min_layer);
@@ -227,6 +286,22 @@ fn window_load(window: ?*pebble.Window) callconv(.c) void {
         const coords: pebble.GRect = .{ .origin = .{ .x = idx * MIN_DIGIT_WIDTH, .y = 0 }, .size = .{ .h = MIN_DIGIT_HEIGHT, .w = MIN_DIGIT_WIDTH } }; // error from grect being bad?
         s.l_digits_bitmaps[i] = pebble.gbitmap_create_as_sub_bitmap(s.l_digits_bitmap, coords);
     }
+
+    pog.debug(@src(), "Created min", .{});
+
+    s.bat_layer = pebble.layer_create(bounds);
+    pebble.layer_set_update_proc(s.bat_layer, battery_update_proc);
+    pebble.layer_add_child(window_layer, s.bat_layer);
+    s.bat_left_bitmap = pebble.gbitmap_create_with_resource(@intFromEnum(presource.RESOURCE_IDS.SPRITE_BAT_LEFT));
+    s.bat_middle_bitmap = pebble.gbitmap_create_with_resource(@intFromEnum(presource.RESOURCE_IDS.SPRITE_BAT_MIDDLE));
+    s.bat_right_bitmap = pebble.gbitmap_create_with_resource(@intFromEnum(presource.RESOURCE_IDS.SPRITE_BAT_RIGHT));
+
+    pog.debug(@src(), "Created battery", .{});
+
+    // s.day_layer = pebble.text_layer_create(.{ .origin = .{ .x = 106, .y = 125 }, .size = .{ .w = 31, .h = 14 } });
+    // pebble.text_layer_set_background_color(s.day_layer, pebble.GColorClear);
+    // pebble.text_layer_set_text_color(s.day_layer, pebble.GColorBlack);
+    // pebble.text_layer_set_font(s.day_layer, pebble.fonts_get_system_font(@intFromEnum(presource.RESOURCE_IDS.FONT_DSEG_14)));
 
     // s.text_layer = pebble.text_layer_create(.{
     //     .origin = .{ .x = 0, .y = @divTrunc(bounds.size.h, 2) - 25 },
@@ -244,8 +319,12 @@ fn window_unload(_: ?*pebble.Window) callconv(.c) void {
     pebble.gbitmap_destroy(s.bg_bitmap);
     pebble.bitmap_layer_destroy(s.bg_bitmap_layer);
 
+    pog.debug(@src(), "Destroyed bg", .{});
+
     pebble.gbitmap_destroy(s.pm_bitmap);
     pebble.bitmap_layer_destroy(s.pm_bitmap_layer);
+
+    pog.debug(@src(), "Destroyed pm", .{});
 
     for (0..10) |i| {
         pebble.gbitmap_destroy(s.s_digits_bitmaps[i]);
@@ -258,6 +337,15 @@ fn window_unload(_: ?*pebble.Window) callconv(.c) void {
     pebble.layer_destroy(s.date_layer);
     pebble.layer_destroy(s.sec_layer);
     pebble.layer_destroy(s.min_layer);
+
+    pog.debug(@src(), "Destroyed date, sec, min", .{});
+
+    pebble.gbitmap_destroy(s.bat_left_bitmap);
+    pebble.gbitmap_destroy(s.bat_middle_bitmap);
+    pebble.gbitmap_destroy(s.bat_right_bitmap);
+    pebble.layer_destroy(s.bat_layer);
+
+    pog.debug(@src(), "Destroyed bat", .{});
 }
 
 export fn main() void {
@@ -277,6 +365,10 @@ export fn main() void {
     // update clock
     updateClock();
     pebble.tick_timer_service_subscribe(pebble.SECOND_UNIT, handle_tick);
+
+    // update battery
+    pebble.battery_state_service_subscribe(battery_callback);
+    battery_callback(pebble.battery_state_service_peek());
 
     pebble.app_event_loop();
 }
