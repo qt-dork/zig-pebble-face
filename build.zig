@@ -15,10 +15,10 @@ pub fn build(b: *std.Build) !void {
             .watchapp = .{
                 .watchface = true,
             },
-            .resources = .{ .media = &.{ .{ .bitmap = .{ .name = "IMAGE_BT", .file = "bt-icon.png" } }, .{ .bitmap = .{ .name = "IMAGE_BG", .file = "images/bg.png" } }, .{ .bitmap = .{ .name = "SPRITE_PM", .file = "images/pm.png" } }, .{ .bitmap = .{ .name = "TYPE_S", .file = "images/type-small.png" } } } },
+            .resources = .{ .media = &.{ .{ .bitmap = .{ .name = "IMAGE_BT", .file = "bt-icon.png" } }, .{ .bitmap = .{ .name = "IMAGE_BG", .file = "images/bg.png" } }, .{ .bitmap = .{ .name = "SPRITE_PM", .file = "images/pm.png" } }, .{ .bitmap = .{ .name = "TYPE_S", .file = "images/type-small.png" } }, .{ .bitmap = .{ .name = "TYPE_M", .file = "images/type-med.png" } }, .{ .bitmap = .{ .name = "TYPE_L", .file = "images/type-lg.png" } } } },
         },
         // .pebble_sdk_path = "~/Library/Application Support/Pebble SDK/SDKs/current/",
         .root_source_file = b.path("src/main.zig"),
-        .optimize = .ReleaseSmall,
+        .optimize = .ReleaseSafe,
     });
 }

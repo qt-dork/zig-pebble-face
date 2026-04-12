@@ -42,7 +42,9 @@ pub fn defaultLog(comptime src: std.builtin.SourceLocation, comptime message_lev
     // pebbleOS buffer is 128 bytes, so maybe i can increase this.
     var buffer: [64]u8 = undefined;
     const res = std.fmt.bufPrintZ(&buffer, format, args) catch return;
-    pebble.app_log(@intFromEnum(message_level), src.fn_name, src.line, res);
+    var name_buffer: [15]u8 = undefined;
+    const name_res = if (src.file.len <= 15) src.file else std.fmt.bufPrintZ(&name_buffer, "{s}", .{src.file[0..15]}) catch return;
+    pebble.app_log(@intFromEnum(message_level), name_res, src.line, res);
 }
 
 /// Returns a scoped logging namespace that logs all messages using the scope
