@@ -253,14 +253,19 @@ fn window_load(window: ?*pebble.Window) callconv(.c) void {
     pog.debug(@src(), "Created PM", .{});
 
     s.date_layer = pebble.layer_create(bounds);
+    pog.debug(@src(), "Created PM bounds", .{});
     pebble.layer_set_update_proc(s.date_layer, updateDate);
+    pog.debug(@src(), "Set PM update proc", .{});
     pebble.layer_add_child(window_layer, s.date_layer);
+    pog.debug(@src(), "Created PM as child", .{});
     s.s_digits_bitmap = pebble.gbitmap_create_with_resource(@intFromEnum(presource.RESOURCE_IDS.TYPE_S));
+    pog.debug(@src(), "Got PM bitmap", .{});
     for (0..10) |i| {
         const idx: i16 = @intCast(i);
         const coords: pebble.GRect = .{ .origin = .{ .x = idx * DATE_DIGIT_WIDTH, .y = 0 }, .size = .{ .h = DATE_DIGIT_HEIGHT, .w = DATE_DIGIT_WIDTH } }; // error from grect being bad?
 
         s.s_digits_bitmaps[i] = pebble.gbitmap_create_as_sub_bitmap(s.s_digits_bitmap, coords);
+        pog.debug(@src(), "Created PM sub-bitmap {d}", .{i});
     }
 
     pog.debug(@src(), "Created date", .{});
