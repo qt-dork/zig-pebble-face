@@ -4,6 +4,7 @@ const pebble = @import("pebble");
 const presource = @import("pebble_appids");
 
 const pog = @import("pog.zig");
+const utils = @import("utils.zig");
 
 const State = struct {
     window: ?*pebble.Window = null,
@@ -28,12 +29,15 @@ const State = struct {
     min_digits: [4]usize = [_]usize{ 0, 0, 0, 0 },
 
     bat_layer: ?*pebble.Layer = null,
-    bat_left_bitmap: ?*pebble.GBitmap = null,
-    bat_middle_bitmap: ?*pebble.GBitmap = null,
-    bat_right_bitmap: ?*pebble.GBitmap = null,
+    bat_bitmap: ?*pebble.GBitmap = null,
+    bat_bitmaps: [3]?*pebble.GBitmap = undefined,
     bat_level: usize = 100,
 
     day_layer: ?*pebble.TextLayer = null,
+    day_font: pebble.GFont = null,
+    day_buffer: [6]u8 = undefined,
+
+    clock_layer: ?*pebble.Layer = null,
 };
 
 const DATE_DIGIT_WIDTH: i16 = 7;
@@ -67,16 +71,20 @@ const SEC_PATH_INFO: pebble.GPathInfo = .{
 };
 
 fn battery_callback(state: pebble.BatteryChargeState) callconv(.c) void {
+    pog.debug(@src(), "battery state: {d}", .{state.charge_percent});
     s.bat_level = state.charge_percent;
     pebble.layer_mark_dirty(s.bat_layer);
 }
 
+const BAT_HEIGHT = 16;
+const BAT_WIDTH = 10;
 const BAT_X = 108;
 const BAT_Y = 45;
 const BAT_MID = 115;
 const BAT_GAP = 122 - BAT_MID;
 
 fn battery_update_proc(_: ?*pebble.Layer, ctx: ?*pebble.GContext) callconv(.c) void {
+    pog.debug(@src(), "battery level: {d}", .{s.bat_level});
     const count: usize = @divTrunc(s.bat_level + 5, 10);
     pebble.graphics_context_set_compositing_mode(ctx, pebble.GCompOpSet);
 
@@ -91,7 +99,7 @@ fn battery_update_proc(_: ?*pebble.Layer, ctx: ?*pebble.GContext) callconv(.c) v
                 const point: pebble.GPoint = .{ .x = x, .y = BAT_Y };
                 const size: pebble.GSize = .{ .h = 16, .w = 10 };
 
-                pebble.graphics_draw_bitmap_in_rect(ctx, if (i == 0) s.bat_left_bitmap else if (i == 9) s.bat_right_bitmap else s.bat_middle_bitmap, .{ .origin = point, .size = size });
+                pebble.graphics_draw_bitmap_in_rect(ctx, if (i == 0) s.bat_bitmaps[0] else if (i == 9) s.bat_bitmaps[2] else s.bat_bitmaps[1], .{ .origin = point, .size = size });
             }
         }
     }
@@ -117,8 +125,12 @@ fn updateClock() void {
 
     // date
     const month: usize = @intCast(time_info.?.tm_mon + 1);
-    const day: usize = @intCast(time_info.?.tm_mday);
-    setDate(month, day);
+    const date: usize = @intCast(time_info.?.tm_mday);
+    setDate(month, date);
+
+    // day
+    const day: usize = @intCast(time_info.?.tm_wday);
+    setDay(day);
 
     // sec
     const sec: usize = @intCast(time_info.?.tm_sec);
@@ -130,14 +142,65 @@ fn updateClock() void {
     setMin(hr, min);
 }
 
-fn updateDay(_: ?*pebble.Layer, ctx: ?*pebble.GContext) callconv(.c) void {
-    _ = ctx; // autofix
+fn clock_update_proc(_: ?*pebble.Layer, ctx: ?*pebble.GContext) callconv(.c) void {
+    pog.debug(@src(), "redrawing clock", .{});
+    var raw_time: pebble.time_t = undefined;
+    var time_info: ?*pebble.tm = undefined;
 
+    _ = pebble.time(&raw_time);
+    time_info = pebble.localtime(&raw_time);
+
+    const seconds: isize = time_info.?.tm_sec;
+    const minutes: isize = time_info.?.tm_min;
+    const hours: isize = @rem(time_info.?.tm_hour, 12);
+
+    const hours_angle: isize = (hours * 30) + @divTrunc(minutes, 3) + @divTrunc(seconds, 120) - 90;
+    drawLine(ctx, hours_angle, 24);
+    const minutes_angle: isize = (minutes * 6) + @divTrunc(seconds, 10) - 90;
+    drawLine(ctx, minutes_angle, 32);
+    const seconds_angle: isize = (seconds * 6) - 90;
+    drawOffsetLine(ctx, seconds_angle, 32, 28);
+}
+
+fn drawLine(ctx: ?*pebble.GContext, angle: isize, length: isize) void {
+    const origin: pebble.GPoint = .{ .x = 53, .y = 83 };
+    const p1 = origin;
+    const p2 = utils.polarToPointOffset(origin, angle, length);
+
+    pebble.graphics_context_set_antialiased(ctx, false);
+    pebble.graphics_context_set_fill_color(ctx, pebble.GColorBlack);
+    pebble.graphics_context_set_stroke_color(ctx, pebble.GColorBlack);
+    pebble.graphics_context_set_stroke_width(ctx, 3);
+    pog.debug(@src(), "p2: x = {d}, y = {d}", .{ p2.x, p2.y });
+    pebble.graphics_draw_line(ctx, p1, p2);
+}
+
+fn drawOffsetLine(ctx: ?*pebble.GContext, angle: i32, length: i32, end_length: i32) void {
+    const origin: pebble.GPoint = .{ .x = 53, .y = 83 };
+    const p1 = utils.polarToPointOffset(origin, angle, end_length);
+    const p2 = utils.polarToPointOffset(origin, angle, length);
+
+    pebble.graphics_context_set_antialiased(ctx, false);
+    pebble.graphics_context_set_fill_color(ctx, pebble.GColorBlack);
+    pebble.graphics_context_set_stroke_color(ctx, pebble.GColorBlack);
+    pebble.graphics_context_set_stroke_width(ctx, 3);
+    pog.debug(@src(), "p1: x = {d}, y = {d} - p2: x = {d}, y = {d}", .{ p1.x, p1.y, p2.x, p2.y });
+    pebble.graphics_draw_line(ctx, p1, p2);
 }
 
 fn setDay(day: usize) void {
-    _ = day; // autofix
+    pog.debug(@src(), "setting day", .{});
 
+    switch (day) {
+        0 => pebble.text_layer_set_text(s.day_layer, "sun"),
+        1 => pebble.text_layer_set_text(s.day_layer, "mon"),
+        2 => pebble.text_layer_set_text(s.day_layer, "tue"),
+        3 => pebble.text_layer_set_text(s.day_layer, "wed"),
+        4 => pebble.text_layer_set_text(s.day_layer, "thu"),
+        5 => pebble.text_layer_set_text(s.day_layer, "fri"),
+        6 => pebble.text_layer_set_text(s.day_layer, "sat"),
+        else => {},
+    }
 }
 
 fn updateDate(_: ?*pebble.Layer, ctx: ?*pebble.GContext) callconv(.c) void {
@@ -180,6 +243,7 @@ fn setSec(sec: usize) void {
     s.sec_digits[0] = @divTrunc(sec, 10);
     s.sec_digits[1] = sec % 10;
     pebble.layer_mark_dirty(s.sec_layer);
+    pebble.layer_mark_dirty(s.clock_layer);
 }
 
 fn updateMin(_: ?*pebble.Layer, ctx: ?*pebble.GContext) callconv(.c) void {
@@ -295,29 +359,39 @@ fn window_load(window: ?*pebble.Window) callconv(.c) void {
     pog.debug(@src(), "Created min", .{});
 
     s.bat_layer = pebble.layer_create(bounds);
+    pog.debug(@src(), "Created battery bounds", .{});
     pebble.layer_set_update_proc(s.bat_layer, battery_update_proc);
+    pog.debug(@src(), "Updated battery proc", .{});
     pebble.layer_add_child(window_layer, s.bat_layer);
-    s.bat_left_bitmap = pebble.gbitmap_create_with_resource(@intFromEnum(presource.RESOURCE_IDS.SPRITE_BAT_LEFT));
-    s.bat_middle_bitmap = pebble.gbitmap_create_with_resource(@intFromEnum(presource.RESOURCE_IDS.SPRITE_BAT_MIDDLE));
-    s.bat_right_bitmap = pebble.gbitmap_create_with_resource(@intFromEnum(presource.RESOURCE_IDS.SPRITE_BAT_RIGHT));
+    pog.debug(@src(), "Added battery layer as child", .{});
+    s.bat_bitmap = pebble.gbitmap_create_with_resource(@intFromEnum(presource.RESOURCE_IDS.SPRITE_BAT));
+    pog.debug(@src(), "Created battery bitmap", .{});
+    for (0..3) |i| {
+        const idx: i16 = @intCast(i);
+        const coords: pebble.GRect = .{ .origin = .{ .x = idx * BAT_WIDTH, .y = 0 }, .size = .{ .h = BAT_HEIGHT, .w = BAT_WIDTH } };
+        s.bat_bitmaps[i] = pebble.gbitmap_create_as_sub_bitmap(s.bat_bitmap, coords);
+    }
 
     pog.debug(@src(), "Created battery", .{});
 
     // s.day_layer = pebble.text_layer_create(.{ .origin = .{ .x = 106, .y = 125 }, .size = .{ .w = 31, .h = 14 } });
-    // pebble.text_layer_set_background_color(s.day_layer, pebble.GColorClear);
-    // pebble.text_layer_set_text_color(s.day_layer, pebble.GColorBlack);
-    // pebble.text_layer_set_font(s.day_layer, pebble.fonts_get_system_font(@intFromEnum(presource.RESOURCE_IDS.FONT_DSEG_14)));
+    s.day_layer = pebble.text_layer_create(.{ .origin = .{ .x = 22, .y = 125 }, .size = .{ .h = 60, .w = 200 } });
+    pog.debug(@src(), "Created day text layer", .{});
+    s.day_font = pebble.fonts_load_custom_font(pebble.resource_get_handle(@intFromEnum(presource.RESOURCE_IDS.FONT_DSEG_14)));
+    // pebble.text_layer_set_font(s.day_layer, pebble.fonts_get_system_font(pebble.FONT_KEY_GOTHIC_28));
+    pebble.text_layer_set_font(s.day_layer, s.day_font);
+    pog.debug(@src(), "Set day font", .{});
+    pebble.text_layer_set_background_color(s.day_layer, pebble.GColorClear);
+    pog.debug(@src(), "Set day bg color", .{});
+    pebble.text_layer_set_text_color(s.day_layer, pebble.GColorBlack);
+    pog.debug(@src(), "Set day color", .{});
+    pebble.text_layer_set_text_alignment(s.day_layer, pebble.GTextAlignmentCenter);
 
-    // s.text_layer = pebble.text_layer_create(.{
-    //     .origin = .{ .x = 0, .y = @divTrunc(bounds.size.h, 2) - 25 },
-    //     .size = .{ .w = bounds.size.w, .h = 50 },
-    // });
-    // pebble.text_layer_set_font(s.text_layer, pebble.fonts_get_system_font(pebble.FONT_KEY_GOTHIC_28_BOLD));
-    // pebble.text_layer_set_text_color(s.text_layer, pebble.GColorBlue);
-    // pebble.text_layer_set_text_alignment(s.text_layer, pebble.GTextAlignmentCenter);
-    // pebble.text_layer_set_text(s.text_layer, "Hello World!");
+    pebble.layer_add_child(window_layer, pebble.text_layer_get_layer(s.day_layer));
 
-    // pebble.layer_add_child(window_layer, pebble.text_layer_get_layer(s.text_layer));
+    s.clock_layer = pebble.layer_create(bounds);
+    pebble.layer_set_update_proc(s.clock_layer, clock_update_proc);
+    pebble.layer_add_child(window_layer, s.clock_layer);
 }
 
 fn window_unload(_: ?*pebble.Window) callconv(.c) void {
@@ -345,12 +419,16 @@ fn window_unload(_: ?*pebble.Window) callconv(.c) void {
 
     pog.debug(@src(), "Destroyed date, sec, min", .{});
 
-    pebble.gbitmap_destroy(s.bat_left_bitmap);
-    pebble.gbitmap_destroy(s.bat_middle_bitmap);
-    pebble.gbitmap_destroy(s.bat_right_bitmap);
+    for (0..3) |i| {
+        pebble.gbitmap_destroy(s.bat_bitmaps[i]);
+    }
+    pebble.gbitmap_destroy(s.bat_bitmap);
     pebble.layer_destroy(s.bat_layer);
 
     pog.debug(@src(), "Destroyed bat", .{});
+
+    pebble.fonts_unload_custom_font(s.day_font);
+    pebble.text_layer_destroy(s.day_layer);
 }
 
 export fn main() void {

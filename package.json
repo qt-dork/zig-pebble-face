@@ -1,0 +1,11 @@
+{
+  "name": "zig_watchface",
+  "author": "evie",
+  "version": "1.0.0",
+  "keywords": [
+    "pebble-app"
+  ],
+  "private": true,
+  "dependencies": {},
+  "scripts": {}
+}

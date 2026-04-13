@@ -1,0 +1,31 @@
+{
+  "name": "zig_watchface",
+  "displayName": "Zig Watchface",
+  "shortName": "Zig Watchface",
+  "longName": "Zig Watchface",
+  "companyName": "evie",
+  "versionLabel": "1.0.0",
+  "uuid": "F066C042-84E6-4A3E-AAA6-28C517AAFCD1",
+  "sdkVersion": "3",
+  "targetPlatforms": ["emery"],
+  "enableMultiJS": false,
+  "watchapp": {
+    "watchface": true,
+    "hiddenApp": false,
+    "onlyShownOnCommunication": false
+  },
+  "resources": {
+    "media": [
+      { "type": "bitmap", "name": "IMAGE_BT", "file": "bt-icon.png" },
+      { "type": "bitmap", "name": "IMAGE_BG", "file": "images/bg.png" },
+      { "type": "bitmap", "name": "SPRITE_PM", "file": "images/pm.png" },
+      { "type": "bitmap", "name": "TYPE_S", "file": "images/type-small.png" },
+      { "type": "bitmap", "name": "TYPE_M", "file": "images/type-med.png" },
+      { "type": "bitmap", "name": "TYPE_L", "file": "images/type-lg.png" },
+      { "type": "bitmap", "name": "SPRITE_BAT", "file": "images/bat.png" },
+      { "type": "font", "name": "FONT_DSEG_14", "file": "fonts/dseg14.ttf" }
+    ],
+    "publishedMedia": []
+  },
+  "capabilities": []
+}
