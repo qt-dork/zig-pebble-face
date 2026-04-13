@@ -1,5 +1,5 @@
 .{
-    .name = .zig_pebble_testing,
+    .name = .royale,
     .version = "0.0.1",
     .dependencies = .{
         // .pebble_sdk = .{

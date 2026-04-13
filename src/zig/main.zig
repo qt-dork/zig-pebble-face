@@ -189,18 +189,15 @@ fn drawOffsetLine(ctx: ?*pebble.GContext, angle: i32, length: i32, end_length: i
 }
 
 fn setDay(day: usize) void {
+    _ = day; // autofix
     pog.debug(@src(), "setting day", .{});
+    var raw_time: pebble.time_t = undefined;
+    var time_info: ?*pebble.tm = undefined;
 
-    switch (day) {
-        0 => pebble.text_layer_set_text(s.day_layer, "sun"),
-        1 => pebble.text_layer_set_text(s.day_layer, "mon"),
-        2 => pebble.text_layer_set_text(s.day_layer, "tue"),
-        3 => pebble.text_layer_set_text(s.day_layer, "wed"),
-        4 => pebble.text_layer_set_text(s.day_layer, "thu"),
-        5 => pebble.text_layer_set_text(s.day_layer, "fri"),
-        6 => pebble.text_layer_set_text(s.day_layer, "sat"),
-        else => {},
-    }
+    _ = pebble.time(&raw_time);
+    time_info = pebble.localtime(&raw_time);
+    _ = pebble.strftime(&s.day_buffer, s.day_buffer.len, "%a", time_info);
+    pebble.text_layer_set_text(s.day_layer, &s.day_buffer);
 }
 
 fn updateDate(_: ?*pebble.Layer, ctx: ?*pebble.GContext) callconv(.c) void {
