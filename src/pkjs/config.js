@@ -13,7 +13,7 @@ module.exports = [
 		"items": [
 			{
 				"type": "heading",
-				"defaultValue": "Features",
+				"defaultValue": "Preferences",
 			},
 			{
 				"type": "select",
@@ -244,5 +244,9 @@ module.exports = [
 				],
 			},
 		],
+	},
+	{
+		"type": "submit",
+		"defaultValue": "Save Settings",
 	},
 ];

@@ -21,7 +21,8 @@
       "watchface": true
     },
     "messageKeys": [
-      "dummy"
+      "EnableSeconds",
+      "TimeZone"
     ],
     "resources": {
       "media": []

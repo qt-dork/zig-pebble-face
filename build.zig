@@ -8,6 +8,8 @@ pub fn build(b: *std.Build) !void {
         .name = "royale",
         .pebble = .{
             .enableMultiJS = true,
+            .capabilities = &.{.configurable},
+            .messageKeys = &.{ .{ .key = "EnableSeconds", .value = 0 }, .{ .key = "TimeZone", .value = 1 } },
             .displayName = "Royale",
             .author = "Evie Finch",
             .uuid = "F066C042-84E6-4A3E-AAA6-28C517AAFCD1", // Generate with uuidgen
