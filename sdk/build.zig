@@ -622,10 +622,11 @@ pub fn addPebbleApplication(b: *std.Build, options: PebbleApplicationOptions) vo
     b.getInstallStep().dependOn(&b.addInstallFile(appinfo_json_file, b.fmt("{s}_appinfo.json", .{options.name})).step);
 
     // Package appinfo, binaries, and resources into pbw
-    const package_pbw_step = b.addSystemCommand(&.{ "uv", "tool", "run", "--from", "pebble-tool", "python", "-c", "import sys; import time; import json; from mkbundle import make_watchapp_bundle; make_watchapp_bundle(int(time.time()), sys.argv[1], [{'subfolder': sys.argv[i], 'sdk_version': dict(zip(['major','minor'], open(sys.argv[i+1], 'rb').read(80)[10:12])), 'watchapp': sys.argv[i+1], 'resources': sys.argv[i+2], 'worker_bin': None} for i in range(3, len(sys.argv), 3)], [], outfile=sys.argv[2])" });
+    const package_pbw_step = b.addSystemCommand(&.{ "uv", "tool", "run", "--from", "pebble-tool", "python", "-c", "import sys; import time; import json; from mkbundle import make_watchapp_bundle; make_watchapp_bundle(int(time.time()), sys.argv[1], [{'subfolder': sys.argv[i], 'sdk_version': dict(zip(['major','minor'], open(sys.argv[i+1], 'rb').read(80)[10:12])), 'watchapp': sys.argv[i+1], 'resources': sys.argv[i+2], 'worker_bin': None} for i in range(4, len(sys.argv), 4)], [sys.argv[3]], outfile=sys.argv[2])" });
     package_pbw_step.setEnvironmentVariable("PYTHONPATH", b.pathJoin(&.{ pebble_sdk_path, "sdk-core/pebble/common/tools" }));
     package_pbw_step.addFileArg(appinfo_json_file);
     const pbw_file = package_pbw_step.addOutputFileArg(b.fmt("{s}.pbw", .{options.name}));
+    package_pbw_step.addFileArg(b.path("src/pkjs/pebble-js-app.js"));
     for (pebble_app_artifacts.items) |artifact| {
         package_pbw_step.addArg(@tagName(artifact.platform));
         package_pbw_step.addFileArg(artifact.bin_file);

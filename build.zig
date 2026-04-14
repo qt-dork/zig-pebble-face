@@ -7,6 +7,7 @@ pub fn build(b: *std.Build) !void {
     pebble_sdk.addPebbleApplication(b, .{
         .name = "royale",
         .pebble = .{
+            .enableMultiJS = true,
             .displayName = "Royale",
             .author = "Evie Finch",
             .uuid = "F066C042-84E6-4A3E-AAA6-28C517AAFCD1", // Generate with uuidgen

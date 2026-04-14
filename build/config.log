@@ -1,0 +1,10 @@
+# project  configured on Mon Apr 13 20:05:54 2026 by
+# waf 2.1.4 (abi 20, python 30d05f0 on darwin)
+# using /Users/eviefinch/Library/Application Support/Pebble SDK/SDKs/current/sdk-core/pebble/waf configure
+#
+----------------------------------------
+Setting top to
+/Users/eviefinch/gitstuffs/zig-pebble-face
+----------------------------------------
+Setting out to
+/Users/eviefinch/gitstuffs/zig-pebble-face/build
