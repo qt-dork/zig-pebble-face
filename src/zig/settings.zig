@@ -59,6 +59,7 @@ pub const TimeZoneOptions = enum(isize) {
     Tehran = 29,
     Dubai = 30,
     Kabul = 31,
+    Karachi = 32,
     Delhi = 33,
     Kathmandu = 34,
     Dhaka = 35,
@@ -112,5 +113,7 @@ pub fn settingsSetTimeZone(option: TimeZoneOptions) void {
 }
 
 pub fn settingsGetTimeZone() TimeZoneOptions {
-    return settingsRead(@intFromEnum(presource.MESSAGE_KEYS.SettingsTimeZone)) orelse DEFAULT.tz;
+    const value = settingsRead(@intFromEnum(presource.MESSAGE_KEYS.SettingsTimeZone));
+    if (value == null) return DEFAULT.tz;
+    return @enumFromInt(value.?);
 }

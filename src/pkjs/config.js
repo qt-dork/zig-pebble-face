@@ -23,7 +23,7 @@ module.exports = [
 				"defaultValue": "0",
 				"options": [
 					{
-						"label": "Once per Second",
+						"label": "Per Second",
 						"value": "0",
 					},
 					{
@@ -179,7 +179,7 @@ module.exports = [
 						"value": "32",
 					},
 					{
-						"label": "Delhi (UTC+5:50)",
+						"label": "Delhi (UTC+5:30)",
 						"value": "33",
 					},
 					{

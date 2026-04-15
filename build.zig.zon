@@ -7,10 +7,7 @@
         //     .hash = "pebble_sdk-1.1.1-rN96oKykAABOtEJcRfIKUFgMHuRRoysyiotg0CXpc514",
         // },
         .pebble_sdk = .{ .path = "./sdk" },
-        .zeit = .{
-            .url = "git+https://github.com/rockorager/zeit?ref=main#2f8ac0f3e90f67439858f411fd8359c3803dd0fa",
-            .hash = "zeit-0.6.0-5I6bk_atAgDz3ZvNiDF-3UR6d53pC6qmec7uWX8-1kzc",
-        },
+        .zeit = .{ .path = "./zeit" },
     },
     .minimum_zig_version = "0.15.2",
     .paths = .{""},

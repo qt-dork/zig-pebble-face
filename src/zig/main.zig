@@ -6,6 +6,7 @@ const presource = @import("pebble_appids");
 const messaging = @import("messaging.zig");
 const pog = @import("pog.zig");
 const settings = @import("settings.zig");
+const tz = @import("tz.zig");
 const utils = @import("utils.zig");
 
 const State = struct {
@@ -150,13 +151,23 @@ fn clock_update_proc(_: ?*pebble.Layer, ctx: ?*pebble.GContext) callconv(.c) voi
     pog.debug(@src(), "redrawing clock", .{});
     var raw_time: pebble.time_t = undefined;
     var time_info: ?*pebble.tm = undefined;
+    var utc: ?*pebble.tm = undefined;
 
     _ = pebble.time(&raw_time);
     time_info = pebble.localtime(&raw_time);
+    utc = pebble.gmtime(&raw_time);
 
-    const seconds: isize = time_info.?.tm_sec;
-    const minutes: isize = time_info.?.tm_min;
-    const hours: isize = @rem(time_info.?.tm_hour, 12);
+    var offset: pebble.tm = undefined;
+    const zone = settings.settingsGetTimeZone();
+    if (zone == .None) {
+        offset = time_info.?.*;
+    } else {
+        offset = tz.offsetTime(utc.?.*, zone);
+    }
+
+    const seconds: isize = offset.tm_sec;
+    const minutes: isize = offset.tm_min;
+    const hours: isize = @rem(offset.tm_hour, 12);
 
     const hours_angle: isize = (hours * 30) + @divTrunc(minutes, 3) + @divTrunc(seconds, 120) - 90;
     drawLine(ctx, hours_angle, 24);
@@ -408,6 +419,7 @@ fn window_unload(_: ?*pebble.Window) callconv(.c) void {
 
 export fn main() void {
     messaging.messagingInit(forceUpdate);
+    defer messaging.messagingDeinit();
 
     s.window = pebble.window_create();
     if (s.window == null) {
