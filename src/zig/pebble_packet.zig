@@ -73,6 +73,10 @@ pub fn getInteger(inbox_iter: ?*pebble.DictionaryIterator, key: u32) ?usize {
 }
 
 pub fn getString(inbox_iter: ?*pebble.DictionaryIterator, key: u32) ?[*:0]const u8 {
+    // pog.debug(@src(), "key: {any}", .{
+    //     @as(?[*:0]const u8, @ptrCast(&pebble.dict_find(inbox_iter, key).*.value().*.cstring)),
+    // });
+
     if (!containsKey(inbox_iter, key)) {
         return null;
     }

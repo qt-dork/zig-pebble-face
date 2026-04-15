@@ -17,8 +17,7 @@ module.exports = [
 			},
 			{
 				"type": "select",
-				"label":
-					"How frequently should the screen update? (More frequent is worse for battery)",
+				"label": "Screen Update Frequency",
 				"messageKey": "SettingsEnableSeconds",
 				"defaultValue": "0",
 				"options": [
@@ -38,7 +37,7 @@ module.exports = [
 			},
 			{
 				"type": "select",
-				"label": "What time zone do you want to track?",
+				"label": "Tracked Time Zone",
 				"messageKey": "SettingsTimeZone",
 				"defaultValue": "-1",
 				"options": [

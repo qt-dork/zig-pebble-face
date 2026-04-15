@@ -155,7 +155,7 @@
 /* 5 */
 /***/ (function(module, exports) {
 
-	module.exports = {"dummy":10000}
+	module.exports = {"SettingsEnableSeconds":10000,"SettingsTimeZone":10001}
 
 /***/ }),
 /* 6 */
@@ -180,8 +180,7 @@
 				},
 				{
 					"type": "select",
-					"label":
-						"How frequently should the screen update? (More frequent is worse for battery)",
+					"label": "Screen Update Frequency",
 					"messageKey": "SettingsEnableSeconds",
 					"defaultValue": "0",
 					"options": [
@@ -201,7 +200,7 @@
 				},
 				{
 					"type": "select",
-					"label": "What time zone do you want to track?",
+					"label": "Tracked Time Zone",
 					"messageKey": "SettingsTimeZone",
 					"defaultValue": "-1",
 					"options": [

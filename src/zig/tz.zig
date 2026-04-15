@@ -43,6 +43,32 @@ pub fn offsetTime(from: pebble.tm, tz: settings.TimeZoneOptions) pebble.tm {
     }
 }
 
+pub fn mapIndex(tz: settings.TimeZoneOptions) ?usize {
+    switch (tz) {
+        .PagoPago, .Hololulu, .Anchorage => return 0,
+        .Vancouver, .SanFran => return 1,
+        .Edmonton, .Denver => return 2,
+        .CDMX, .Chicago => return 3,
+        .NYC => return 4,
+        .Santiago, .Halifax, .StJohns => return 5,
+        .Rio, .FdeNoronha => return 6,
+        .Praia, .UTC, .Lisbon, .London => return 7,
+        .Madrid, .Paris, .Rome, .Berlin, .Stockholm => return 8,
+        .Athen, .Cairo, .Jerusalem => return 9,
+        .Moscow, .Jeddah, .Tehran => return 10,
+        .Dubai, .Kabul => return 11,
+        .Karachi, .Delhi, .Kathmandu => return 12,
+        .Dhaka => return 13,
+        .Yangon, .Bangkok => return 14,
+        .Singapore, .HongKong, .Beijing, .Taipei => return 15,
+        .Seoul, .Tokyo, .Adelaide => return 16,
+        .Guam, .Sydney => return 17,
+        .Noumea => return 18,
+        .Wellington => return 19,
+        else => return null,
+    }
+}
+
 fn newTm(from: pebble.tm, gmtoff: c_int, minoff: c_int) pebble.tm {
     var mod = from;
     mod.tm_gmtoff = gmtoff;

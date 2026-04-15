@@ -11,6 +11,7 @@ const utils = @import("utils.zig");
 
 const State = struct {
     window: ?*pebble.Window = null,
+    init_done: bool = false,
     bg_bitmap_layer: ?*pebble.BitmapLayer = null,
     bg_bitmap: ?*pebble.GBitmap = null,
     pm_bitmap_layer: ?*pebble.BitmapLayer = null,
@@ -35,6 +36,11 @@ const State = struct {
     bat_bitmap: ?*pebble.GBitmap = null,
     bat_bitmaps: [3]?*pebble.GBitmap = undefined,
     bat_level: usize = 100,
+
+    map_layer: ?*pebble.Layer = null,
+    map_bitmap: ?*pebble.GBitmap = null,
+    map_bitmaps: [20]?*pebble.GBitmap = undefined,
+    cur_map: ?usize = null,
 
     day_layer: ?*pebble.TextLayer = null,
     day_font: pebble.GFont = null,
@@ -63,6 +69,9 @@ const HR_DIGIT_GAP: i16 = 3;
 const HR_TO_MIN_DIGIT_GAP: i16 = 11;
 const MIN_DIGIT_GAP: i16 = 2;
 
+const MAP_HEIGHT: i16 = 38;
+const MAP_WIDTH: i16 = 69;
+
 var s = State{};
 
 // 55,83
@@ -74,7 +83,6 @@ const SEC_PATH_INFO: pebble.GPathInfo = .{
 };
 
 fn battery_callback(state: pebble.BatteryChargeState) callconv(.c) void {
-    pog.debug(@src(), "battery callback", .{});
     s.bat_level = state.charge_percent;
     pebble.layer_mark_dirty(s.bat_layer);
 }
@@ -87,7 +95,6 @@ const BAT_MID = 115;
 const BAT_GAP = 122 - BAT_MID;
 
 fn battery_update_proc(_: ?*pebble.Layer, ctx: ?*pebble.GContext) callconv(.c) void {
-    pog.debug(@src(), "battery update", .{});
     const count: usize = @divTrunc(s.bat_level + 5, 10);
     pebble.graphics_context_set_compositing_mode(ctx, pebble.GCompOpSet);
 
@@ -119,7 +126,7 @@ fn updateClock() void {
     _ = pebble.time(&raw_time);
     time_info = pebble.localtime(&raw_time);
 
-    if (settings.settingsGetSeconds() == .PerFifteen and @rem(time_info.?.tm_sec, 15) != 0) return;
+    if (s.init_done and settings.settingsGetSeconds() == .PerFifteen and @rem(time_info.?.tm_sec, 15) != 0) return;
 
     // am/pm
     if (time_info.?.tm_hour > 11) {
@@ -145,10 +152,11 @@ fn updateClock() void {
     const hr: usize = @intCast(time_info.?.tm_hour);
     const min: usize = @intCast(time_info.?.tm_min);
     setMin(hr, min);
+
+    s.init_done = true;
 }
 
 fn clock_update_proc(_: ?*pebble.Layer, ctx: ?*pebble.GContext) callconv(.c) void {
-    pog.debug(@src(), "redrawing clock", .{});
     var raw_time: pebble.time_t = undefined;
     var time_info: ?*pebble.tm = undefined;
     var utc: ?*pebble.tm = undefined;
@@ -169,7 +177,7 @@ fn clock_update_proc(_: ?*pebble.Layer, ctx: ?*pebble.GContext) callconv(.c) voi
     const minutes: isize = offset.tm_min;
     const hours: isize = @rem(offset.tm_hour, 12);
 
-    const hours_angle: isize = (hours * 30) + @divTrunc(minutes, 3) + @divTrunc(seconds, 120) - 90;
+    const hours_angle: isize = (hours * 30) + @divTrunc(minutes, 2) + @divTrunc(seconds, 120) - 90;
     drawLine(ctx, hours_angle, 24);
     const minutes_angle: isize = (minutes * 6) + @divTrunc(seconds, 10) - 90;
     drawLine(ctx, minutes_angle, 32);
@@ -203,7 +211,6 @@ fn drawOffsetLine(ctx: ?*pebble.GContext, angle: i32, length: i32, end_length: i
 }
 
 fn setDay(_: usize) void {
-    pog.debug(@src(), "setting day", .{});
     var raw_time: pebble.time_t = undefined;
     var time_info: ?*pebble.tm = undefined;
 
@@ -214,7 +221,6 @@ fn setDay(_: usize) void {
 }
 
 fn updateDate(_: ?*pebble.Layer, ctx: ?*pebble.GContext) callconv(.c) void {
-    pog.debug(@src(), "date", .{});
     pebble.graphics_context_set_compositing_mode(ctx, pebble.GCompOpSet);
 
     const month = s.date_digits[0];
@@ -259,7 +265,6 @@ fn setSec(sec: usize) void {
 
 fn updateMin(_: ?*pebble.Layer, ctx: ?*pebble.GContext) callconv(.c) void {
     pebble.graphics_context_set_compositing_mode(ctx, pebble.GCompOpSet);
-    pog.debug(@src(), "update min", .{});
 
     const min_size = pebble.GSize{
         .h = MIN_DIGIT_HEIGHT,
@@ -288,7 +293,8 @@ fn setMin(hr: usize, min: usize) void {
         return;
     }
 
-    const twelve_hr = hr % 12; // I don't yet support 24 hour mode so i'm forcing 12 hour mode. i will add it soon.
+    var twelve_hr = hr % 12; // I don't yet support 24 hour mode so i'm forcing 12 hour mode. i will add it soon.
+    twelve_hr = if (twelve_hr == 0) 12 else twelve_hr; // bad code
 
     s.min_digits[0] = @divTrunc(twelve_hr, 10);
     s.min_digits[1] = twelve_hr % 10;
@@ -299,7 +305,23 @@ fn setMin(hr: usize, min: usize) void {
     pebble.layer_mark_dirty(s.min_layer);
 }
 
+fn updateMap(_: ?*pebble.Layer, ctx: ?*pebble.GContext) callconv(.c) void {
+    pebble.graphics_context_set_compositing_mode(ctx, pebble.GCompOpSet);
+
+    const pos = pebble.GPoint{
+        .x = 109,
+        .y = 71,
+    };
+    const size = pebble.GSize{
+        .h = MAP_HEIGHT,
+        .w = MAP_WIDTH,
+    };
+    if (s.cur_map) |cur| pebble.graphics_draw_bitmap_in_rect(ctx, s.map_bitmaps[cur], pebble.GRect{ .origin = pos, .size = size });
+}
+
 fn forceUpdate() void {
+    updateClock();
+
     pebble.layer_mark_dirty(s.bat_layer);
     pebble.layer_mark_dirty(s.date_layer);
     pebble.layer_mark_dirty(s.clock_layer);
@@ -308,6 +330,9 @@ fn forceUpdate() void {
 
     pebble.tick_timer_service_unsubscribe();
     pebble.tick_timer_service_subscribe(if (settings.settingsGetSeconds() == .PerMinute) pebble.MINUTE_UNIT else pebble.SECOND_UNIT, handle_tick);
+
+    s.cur_map = tz.mapIndex(settings.settingsGetTimeZone());
+    pebble.layer_mark_dirty(s.map_layer);
 }
 
 fn window_load(window: ?*pebble.Window) callconv(.c) void {
@@ -385,6 +410,16 @@ fn window_load(window: ?*pebble.Window) callconv(.c) void {
     pebble.layer_set_update_proc(s.clock_layer, clock_update_proc);
     pebble.layer_add_child(window_layer, s.clock_layer);
 
+    s.map_layer = pebble.layer_create(bounds);
+    pebble.layer_set_update_proc(s.map_layer, updateMap);
+    pebble.layer_add_child(window_layer, s.map_layer);
+    s.map_bitmap = pebble.gbitmap_create_with_resource(@intFromEnum(presource.RESOURCE_IDS.SPRITE_MAP));
+    for (0..20) |i| {
+        const idx: i16 = @intCast(i);
+        const coords: pebble.GRect = .{ .origin = .{ .x = idx * MAP_WIDTH, .y = 0 }, .size = .{ .h = MAP_HEIGHT, .w = MAP_WIDTH } };
+        s.map_bitmaps[i] = pebble.gbitmap_create_as_sub_bitmap(s.map_bitmap, coords);
+    }
+
     forceUpdate();
 }
 
@@ -415,6 +450,12 @@ fn window_unload(_: ?*pebble.Window) callconv(.c) void {
 
     pebble.fonts_unload_custom_font(s.day_font);
     pebble.text_layer_destroy(s.day_layer);
+
+    for (0..20) |i| {
+        pebble.gbitmap_destroy(s.map_bitmaps[i]);
+    }
+    pebble.gbitmap_destroy(s.map_bitmap);
+    pebble.layer_destroy(s.map_layer);
 }
 
 export fn main() void {
