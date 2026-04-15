@@ -182,7 +182,7 @@
 					"type": "select",
 					"label":
 						"How frequently should the screen update? (More frequent is worse for battery)",
-					"messageKey": "EnableSeconds",
+					"messageKey": "SettingsEnableSeconds",
 					"defaultValue": "0",
 					"options": [
 						{
@@ -202,7 +202,7 @@
 				{
 					"type": "select",
 					"label": "What time zone do you want to track?",
-					"messageKey": "TimeZone",
+					"messageKey": "SettingsTimeZone",
 					"defaultValue": "-1",
 					"options": [
 						{
