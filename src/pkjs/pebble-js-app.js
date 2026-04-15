@@ -176,7 +176,7 @@
 			"items": [
 				{
 					"type": "heading",
-					"defaultValue": "Features",
+					"defaultValue": "Preferences",
 				},
 				{
 					"type": "select",
@@ -407,6 +407,10 @@
 					],
 				},
 			],
+		},
+		{
+			"type": "submit",
+			"defaultValue": "Save Settings",
 		},
 	];
 

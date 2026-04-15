@@ -13,16 +13,17 @@ module.exports = [
 		"items": [
 			{
 				"type": "heading",
-				"defaultValue": "Features",
+				"defaultValue": "Preferences",
 			},
 			{
 				"type": "select",
-				"label": "Enable Seconds",
+				"label":
+					"How frequently should the screen update? (More frequent is worse for battery)",
 				"messageKey": "EnableSeconds",
 				"defaultValue": "0",
 				"options": [
 					{
-						"label": "Per Second",
+						"label": "Once per Second",
 						"value": "0",
 					},
 					{
@@ -244,5 +245,9 @@ module.exports = [
 				],
 			},
 		],
+	},
+	{
+		"type": "submit",
+		"defaultValue": "Save Settings",
 	},
 ];

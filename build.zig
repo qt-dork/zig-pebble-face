@@ -9,7 +9,7 @@ pub fn build(b: *std.Build) !void {
         .pebble = .{
             .enableMultiJS = true,
             .capabilities = &.{.configurable},
-            .messageKeys = &.{ .{ .key = "EnableSeconds", .value = 0 }, .{ .key = "TimeZone", .value = 1 } },
+            .messageKeys = &.{ .{ .key = "SettingsEnableSeconds", .value = 1 }, .{ .key = "SettingsTimeZone", .value = 2 } },
             .displayName = "Royale",
             .author = "Evie Finch",
             .uuid = "F066C042-84E6-4A3E-AAA6-28C517AAFCD1", // Generate with uuidgen

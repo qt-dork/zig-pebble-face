@@ -3,6 +3,7 @@ const std = @import("std");
 const pebble = @import("pebble");
 const presource = @import("pebble_appids");
 
+const messaging = @import("messaging.zig");
 const pog = @import("pog.zig");
 const settings = @import("settings.zig");
 const utils = @import("utils.zig");
@@ -39,8 +40,6 @@ const State = struct {
     day_buffer: [6]u8 = undefined,
 
     clock_layer: ?*pebble.Layer = null,
-
-    settings: settings.Settings = undefined,
 };
 
 const DATE_DIGIT_WIDTH: i16 = 7;
@@ -119,7 +118,7 @@ fn updateClock() void {
     _ = pebble.time(&raw_time);
     time_info = pebble.localtime(&raw_time);
 
-    if (s.settings.seconds == .PerFifteen and @rem(time_info.?.tm_sec, 15) != 0) return;
+    if (settings.settingsGetSeconds() == .PerFifteen and @rem(time_info.?.tm_sec, 15) != 0) return;
 
     // am/pm
     if (time_info.?.tm_hour > 11) {
@@ -242,7 +241,7 @@ fn updateSec(_: ?*pebble.Layer, ctx: ?*pebble.GContext) callconv(.c) void {
 fn setSec(sec: usize) void {
     s.sec_digits[0] = @divTrunc(sec, 10);
     s.sec_digits[1] = sec % 10;
-    if (s.settings.seconds == .PerFifteen and sec % 15 != 0) return;
+    if (settings.settingsGetSeconds() == .PerFifteen and sec % 15 != 0) return;
     pebble.layer_mark_dirty(s.sec_layer);
     pebble.layer_mark_dirty(s.clock_layer);
 }
@@ -287,6 +286,17 @@ fn setMin(hr: usize, min: usize) void {
     s.min_digits[3] = min % 10;
 
     pebble.layer_mark_dirty(s.min_layer);
+}
+
+fn forceUpdate() void {
+    pebble.layer_mark_dirty(s.bat_layer);
+    pebble.layer_mark_dirty(s.date_layer);
+    pebble.layer_mark_dirty(s.clock_layer);
+    pebble.layer_mark_dirty(s.sec_layer);
+    pebble.layer_mark_dirty(s.min_layer);
+
+    pebble.tick_timer_service_unsubscribe();
+    pebble.tick_timer_service_subscribe(if (settings.settingsGetSeconds() == .PerMinute) pebble.MINUTE_UNIT else pebble.SECOND_UNIT, handle_tick);
 }
 
 fn window_load(window: ?*pebble.Window) callconv(.c) void {
@@ -363,6 +373,8 @@ fn window_load(window: ?*pebble.Window) callconv(.c) void {
     s.clock_layer = pebble.layer_create(bounds);
     pebble.layer_set_update_proc(s.clock_layer, clock_update_proc);
     pebble.layer_add_child(window_layer, s.clock_layer);
+
+    forceUpdate();
 }
 
 fn window_unload(_: ?*pebble.Window) callconv(.c) void {
@@ -395,8 +407,8 @@ fn window_unload(_: ?*pebble.Window) callconv(.c) void {
 }
 
 export fn main() void {
-    s.settings = settings.loadSettings();
-    s.settings.seconds = .PerFifteen;
+    messaging.messagingInit(forceUpdate);
+
     s.window = pebble.window_create();
     if (s.window == null) {
         unreachable;
@@ -412,7 +424,7 @@ export fn main() void {
 
     // update clock
     updateClock();
-    pebble.tick_timer_service_subscribe(pebble.SECOND_UNIT, handle_tick);
+    pebble.tick_timer_service_subscribe(if (settings.settingsGetSeconds() == .PerMinute) pebble.MINUTE_UNIT else pebble.SECOND_UNIT, handle_tick);
 
     // update battery
     pebble.battery_state_service_subscribe(battery_callback);
