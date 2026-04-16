@@ -1,13 +1,12 @@
 .{
     .name = .royale,
-    .version = "0.0.1",
+    .version = "1.0.1",
     .dependencies = .{
         // .pebble_sdk = .{
         //     .url = "git+https://github.com/vsergeev/zig-pebble-sdk?ref=master#a88635b5123bf407d0ed7a1f9bee81e6040fe22e",
         //     .hash = "pebble_sdk-1.1.1-rN96oKykAABOtEJcRfIKUFgMHuRRoysyiotg0CXpc514",
         // },
         .pebble_sdk = .{ .path = "./sdk" },
-        .zeit = .{ .path = "./zeit" },
     },
     .minimum_zig_version = "0.15.2",
     .paths = .{""},

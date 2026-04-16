@@ -4,7 +4,7 @@
   "shortName": "Zig Watchface",
   "longName": "Zig Watchface",
   "companyName": "evie",
-  "versionLabel": "1.0.0",
+  "versionLabel": "1.0.1",
   "uuid": "F066C042-84E6-4A3E-AAA6-28C517AAFCD1",
   "sdkVersion": "3",
   "targetPlatforms": ["emery"],
