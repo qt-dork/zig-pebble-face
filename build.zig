@@ -12,8 +12,8 @@ pub fn build(b: *std.Build) !void {
             .messageKeys = &.{ .{ .key = "SettingsEnableSeconds", .value = 10000 }, .{ .key = "SettingsTimeZone", .value = 10001 } },
             .displayName = "Royale",
             .author = "Evie Finch",
-            .uuid = "F066C042-84E6-4A3E-AAA6-28C517AAFCD1", // Generate with uuidgen
-            .version = .{ .major = 1, .minor = 0 },
+            .uuid = "f066c042-84e6-4a3e-aaa6-28c517aafcd1", // Generate with uuidgen
+            .version = .{ .major = 1, .minor = 1 },
             .targetPlatforms = &.{.emery}, // Pebble platforms to build for
             .watchapp = .{
                 .watchface = true,
