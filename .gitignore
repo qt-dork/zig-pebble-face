@@ -29,6 +29,7 @@ Temporary Items
 .zig-cache/
 zig-out/
 *.o
+zig-pkg/
 
 # Dummy build
 dummy_royale/build/
