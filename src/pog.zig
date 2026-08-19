@@ -33,12 +33,12 @@ pub const default_level: Level = switch (builtin.mode) {
 };
 
 pub const ScopeLevel = struct {
-    scope: @Type(.enum_literal),
+    scope: @EnumLiteral(),
     level: Level,
 };
 
 /// Use like `log(@src(), "fmt", .{});
-pub fn defaultLog(comptime src: std.builtin.SourceLocation, comptime message_level: Level, comptime _: @Type(.enum_literal), comptime format: []const u8, args: anytype) void {
+pub fn defaultLog(comptime src: std.builtin.SourceLocation, comptime message_level: Level, comptime _: @EnumLiteral(), comptime format: []const u8, args: anytype) void {
     // pebbleOS buffer is 128 bytes, so maybe i can increase this.
     var buffer: [64]u8 = undefined;
     const res = std.fmt.bufPrintZ(&buffer, format, args) catch return;
@@ -49,7 +49,7 @@ pub fn defaultLog(comptime src: std.builtin.SourceLocation, comptime message_lev
 
 /// Returns a scoped logging namespace that logs all messages using the scope
 /// provided here.
-pub fn scoped(comptime scope: @Type(.enum_literal)) type {
+pub fn scoped(comptime scope: @EnumLiteral()) type {
     return struct {
         /// Log an error message. This log level is intended to be used
         /// when something has gone wrong. This might be recoverable or might

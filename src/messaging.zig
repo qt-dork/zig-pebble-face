@@ -14,16 +14,14 @@ var on_update: MessagingCallback = undefined;
 fn inbox_received_handler(iter: [*c]pebble.DictionaryIterator, _: ?*anyopaque) callconv(.c) void {
     const seconds_tuple = pebble.dict_find(iter, @intFromEnum(presource.MESSAGE_KEYS.SettingsEnableSeconds));
     const seconds: ?i32 = if (seconds_tuple) |t| blk: {
-        const ptr: [*:0]u8 = @ptrCast(&t.*.value().*.cstring);
-        const s = std.mem.span(ptr);
+        const s = std.mem.span(t.*.value().*.cstring());
         break :blk std.fmt.parseInt(i32, s, 10) catch null;
     } else null;
     if (seconds) |t| settings.settingsSetSeconds(@enumFromInt(t));
 
     const timezone_tuple = pebble.dict_find(iter, @intFromEnum(presource.MESSAGE_KEYS.SettingsTimeZone));
     const timezone: ?i32 = if (timezone_tuple) |t| blk: {
-        const ptr: [*:0]u8 = @ptrCast(&t.*.value().*.cstring);
-        const s = std.mem.span(ptr);
+        const s = std.mem.span(t.*.value().*.cstring());
         break :blk std.fmt.parseInt(i32, s, 10) catch null;
     } else null;
     if (timezone) |t| settings.settingsSetTimeZone(@enumFromInt(t));
