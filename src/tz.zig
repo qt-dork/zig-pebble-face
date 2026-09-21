@@ -82,5 +82,5 @@ fn wrappingAddHour(lhs: c_int, rhs: c_int) c_int {
 }
 
 fn wrappingAddMin(lhs: c_int, rhs: c_int) c_int {
-    return @rem((lhs + 24) + rhs, 24);
+    return @rem((lhs + 60) + rhs, 60);
 }
