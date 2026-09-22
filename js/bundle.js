@@ -54,25 +54,25 @@
   ];
   function nthWeekdayOfMonth(year, month, n, dayOfWeek) {
     if (n === 0) {
-      var nextMonth = new Date(Date.UTC(year, month, 1));
+      const nextMonth = new Date(Date.UTC(year, month, 1));
       nextMonth.setUTCDate(0);
-      var lastDay = nextMonth.getUTCDate();
-      var lastDow = nextMonth.getUTCDay();
-      var diff = lastDow - dayOfWeek;
-      if (diff < 0) diff += 7;
-      return lastDay - diff;
+      const lastDay = nextMonth.getUTCDate();
+      const lastDow = nextMonth.getUTCDay();
+      let diff2 = lastDow - dayOfWeek;
+      if (diff2 < 0) diff2 += 7;
+      return lastDay - diff2;
     }
-    var first = new Date(Date.UTC(year, month - 1, 1));
-    var firstDow = first.getUTCDay();
-    var diff = dayOfWeek - firstDow;
+    const first = new Date(Date.UTC(year, month - 1, 1));
+    const firstDow = first.getUTCDay();
+    let diff = dayOfWeek - firstDow;
     if (diff < 0) diff += 7;
     return 1 + diff + (n - 1) * 7;
   }
   function isDstActive(city, now) {
-    var rule = city.dst;
+    const rule = city.dst;
     if (!rule) return false;
-    var year = now.getUTCFullYear();
-    var startDay, endDay;
+    const year = now.getUTCFullYear();
+    let startDay, endDay;
     if (rule.sd !== void 0 && rule.sw === void 0) {
       startDay = new Date(Date.UTC(year, rule.sm - 1, rule.sd));
       endDay = new Date(Date.UTC(year, rule.em - 1, rule.ed));
@@ -88,273 +88,62 @@
     }
     return city.std;
   }
-  function dayLabelForCity(city, now) {
-    var offsetDiff = cityOffsetMinutes(city, now) + now.getTimezoneOffset();
-    var cityTotalMinutes = now.getHours() * 60 + now.getMinutes() + offsetDiff;
-    var dayDiff = Math.floor(cityTotalMinutes / 1440);
-    if (dayDiff <= -1) return -1;
-    if (dayDiff >= 1) return 1;
-    return 0;
-  }
 
-  // src/constants.ts
-  var FULL_NIGHT_SENTINEL = 255;
-
-  // src/city-data.ts
-  var lastSentCityData = null;
-  var lastSentLocationAvailable = null;
-  var cachedPinnedCities = null;
-  function sendDictionary(dictionary, success, failure) {
-    Pebble.sendAppMessage(dictionary, success, function(error) {
-      console.log("sendAppMessage failed", JSON.stringify(error));
-      if (failure) {
-        failure(error);
-      }
-    });
-  }
-  function getPinnedCities() {
-    if (cachedPinnedCities) return cachedPinnedCities;
+  // src/timezone-data.ts
+  var SETTINGS_KEY = "royaleSettings";
+  function readSettings() {
     try {
-      var savedSettings = localStorage.getItem("royaleSettings");
-      if (savedSettings) {
-        var settings = JSON.parse(savedSettings);
-        if (settings.SETTING_PINNED_CITIES) {
-          cachedPinnedCities = JSON.parse(settings.SETTING_PINNED_CITIES);
-          return cachedPinnedCities;
-        }
-      }
+      const raw = localStorage.getItem(SETTINGS_KEY);
+      if (raw) return JSON.parse(raw);
     } catch (e) {
-      console.log("Error parsing pinned cities:", e);
+      console.log("Error parsing saved settings:", e);
     }
-    return [
-      "HONOLULU",
-      "ANCHORAGE",
-      "SAN FRANCISCO",
-      "DENVER",
-      "CHICAGO",
-      "NEW YORK",
-      "ST. JOHNS",
-      "RIO DE JANEIRO",
-      "LONDON",
-      "BERLIN",
-      "CAIRO",
-      "MOSCOW",
-      "DUBAI",
-      "DELHI",
-      "KATHMANDU",
-      "BANGKOK",
-      "BEIJING",
-      "TOKYO",
-      "SYDNEY",
-      "WELLINGTON"
-    ];
+    return {};
   }
-  function getDateFormat() {
-    try {
-      var savedSettings = localStorage.getItem("royaleSettings");
-      if (savedSettings) {
-        var settings = JSON.parse(savedSettings);
-        if (settings.SETTING_DATE_FORMAT !== void 0) {
-          return parseInt(settings.SETTING_DATE_FORMAT, 10) || 0;
-        }
-      }
-    } catch (e) {
+  function offsetMinutesFor(tzIndex, now) {
+    if (tzIndex >= 0 && tzIndex < CITIES.length) {
+      return cityOffsetMinutes(CITIES[tzIndex], now);
     }
-    return 0;
+    return -now.getTimezoneOffset();
   }
-  function getCustomCities() {
-    try {
-      var savedSettings = localStorage.getItem("royaleSettings");
-      if (savedSettings) {
-        var settings = JSON.parse(savedSettings);
-        if (settings.SETTING_CUSTOM_CITIES) {
-          return JSON.parse(settings.SETTING_CUSTOM_CITIES);
-        }
-      }
-    } catch (e) {
-      console.log("Error parsing custom cities:", e);
-    }
-    return [];
-  }
-  function pushInt16BE(blob, value) {
-    var v = value & 65535;
-    blob.push(v >> 8 & 255);
-    blob.push(v & 255);
-  }
-  var PROXIMITY_THRESHOLD_SQ = 0.2025;
-  function findNearestEntryByCoords(entries, lat, lon) {
-    var bestIdx = -1;
-    var bestDist = PROXIMITY_THRESHOLD_SQ;
-    for (var i = 0; i < entries.length; i++) {
-      var entry = entries[i];
-      var entryLat = entry.type === "standard" ? entry.city.lat : entry.cc.lat;
-      var entryLon = entry.type === "standard" ? entry.city.lon : entry.cc.lon;
-      var dlat = entryLat - lat;
-      var dlon = entryLon - lon;
-      var dist = dlat * dlat + dlon * dlon;
-      if (dist < bestDist) {
-        bestDist = dist;
-        bestIdx = i;
-      }
-    }
-    return bestIdx;
-  }
-  function computeCityDataBlob(now, coords) {
-    var pinnedNames = getPinnedCities();
-    var customCities = getCustomCities();
-    var entries = [];
-    for (var i = 0; i < CITIES.length; i++) {
-      var city = CITIES[i];
-      if (!pinnedNames.includes(city.name)) continue;
-      entries.push({ type: "standard", city, lon: city.lon });
-    }
-    for (var j = 0; j < customCities.length; j++) {
-      var cc = customCities[j];
-      var refCity = null;
-      for (var k = 0; k < CITIES.length; k++) {
-        if (CITIES[k].name === cc.tzCityName) {
-          refCity = CITIES[k];
-          break;
-        }
-      }
-      if (!refCity) continue;
-      entries.push({ type: "custom", cc, refCity, lon: cc.lon });
-    }
-    entries.sort(function(a, b) {
-      return a.lon - b.lon;
-    });
-    var matchedCityIndex = -1;
-    if (coords) {
-      matchedCityIndex = findNearestEntryByCoords(entries, coords.latitude, coords.longitude);
-    }
-    var blob = [];
-    for (var e = 0; e < entries.length; e++) {
-      var entry = entries[e];
-      if (entry.type === "standard") {
-        var sc = entry.city;
-        var name = sc.name.substring(0, 15);
-        for (var n = 0; n < 16; n++) blob.push(n < name.length ? name.charCodeAt(n) : 0);
-        pushInt16BE(blob, Math.round(sc.lat * 100));
-        pushInt16BE(blob, Math.round(sc.lon * 100));
-        pushInt16BE(blob, cityOffsetMinutes(sc, now));
-        var label = dayLabelForCity(sc, now);
-        blob.push(label < 0 ? FULL_NIGHT_SENTINEL : label);
-        blob.push(0);
-      } else {
-        var cu = entry.cc;
-        var rf = entry.refCity;
-        var ccName = cu.displayName.toUpperCase().substring(0, 15);
-        for (var cn = 0; cn < 16; cn++) blob.push(cn < ccName.length ? ccName.charCodeAt(cn) : 0);
-        pushInt16BE(blob, Math.round(cu.lat * 100));
-        pushInt16BE(blob, Math.round(cu.lon * 100));
-        pushInt16BE(blob, cityOffsetMinutes(rf, now));
-        var ccLabel = dayLabelForCity(rf, now);
-        blob.push(ccLabel < 0 ? FULL_NIGHT_SENTINEL : ccLabel);
-        blob.push(0);
-      }
-    }
-    return { blob, matchedCityIndex };
-  }
-  function cityDataBlobsEqual(a, b) {
-    if (!a || !b || a.length !== b.length) return false;
-    for (var i = 0; i < a.length; i++) {
-      if (a[i] !== b[i]) return false;
-    }
-    return true;
-  }
-  function sendCityData(coords, locationAvailable2) {
+  function sendTimezoneData() {
+    const settings = readSettings();
+    const tzIndex = typeof settings.SETTING_TIME_ZONE === "number" ? settings.SETTING_TIME_ZONE : -1;
     const now = /* @__PURE__ */ new Date();
-    const result = computeCityDataBlob(now, coords);
-    const blob = result.blob;
-    const matchedCityIndex = result.matchedCityIndex;
-    const locationAvailableChanged = locationAvailable2 !== null && locationAvailable2 !== void 0 && locationAvailable2 !== lastSentLocationAvailable;
-    if (cityDataBlobsEqual(blob, lastSentCityData) && !coords && !locationAvailableChanged) {
-      return;
-    }
-    lastSentCityData = blob;
-    if (locationAvailable2 !== null && locationAvailable2 !== void 0) {
-      lastSentLocationAvailable = locationAvailable2;
-    }
-    var CHUNK_SIZE = 120;
-    var chunks = [];
-    for (var start = 0; start < blob.length; start += CHUNK_SIZE) {
-      var chunk = blob.slice(start, start + CHUNK_SIZE);
-      var dict = {
-        CITY_DATA_START: start,
-        CITY_DATA_COUNT: chunk.length,
-        CITY_DATA_TOTAL: blob.length,
-        CITY_DATA: chunk
-      };
-      if (start === 0) {
-        dict.SETTING_DATE_FORMAT = getDateFormat();
-        dict.USER_UTC_OFFSET_MINUTES = -now.getTimezoneOffset();
-        if (coords) {
-          dict.USER_LAT = Math.round(coords.latitude * 100);
-          dict.USER_LON = Math.round(coords.longitude * 100);
-          dict.USER_MATCHED_CITY_INDEX = matchedCityIndex;
-        }
-        if (locationAvailable2 === false) {
-          dict.LOCATION_AVAILABLE = 0;
-        }
+    const dictionary = {
+      SettingsEnableSeconds: settings.SETTING_ENABLE_SECONDS ?? 0,
+      SettingsDateFormat: settings.SETTING_DATE_FORMAT ?? 0,
+      SettingsTimeZone: tzIndex,
+      SettingsTimeZoneOffsetMinutes: offsetMinutesFor(tzIndex, now)
+    };
+    Pebble.sendAppMessage(
+      dictionary,
+      function() {
+        console.log("Sent settings", JSON.stringify(dictionary));
+      },
+      function(error) {
+        console.log("sendAppMessage failed", JSON.stringify(error));
       }
-      chunks.push(dict);
-    }
-    function sendChunk(index) {
-      if (index >= chunks.length) return;
-      sendDictionary(chunks[index], function() {
-        sendChunk(index + 1);
-      });
-    }
-    sendChunk(0);
-  }
-  function forceResend() {
-    lastSentCityData = null;
-  }
-  function clearCachedPinnedCities() {
-    cachedPinnedCities = null;
+    );
   }
 
   // src/index.ts
   var configDataUri = "http://localhost:3000/royale/";
+  var DST_CHECK_INTERVAL_MS = 30 * 60 * 1e3;
   var dstCheckTimer = null;
-  var locationAvailable = null;
   function startDstChecks() {
     if (dstCheckTimer) clearInterval(dstCheckTimer);
     dstCheckTimer = setInterval(function() {
-      sendCityData(null, locationAvailable);
-    }, 30 * 60 * 1e3);
+      sendTimezoneData();
+    }, DST_CHECK_INTERVAL_MS);
   }
   Pebble.addEventListener("ready", function() {
     startDstChecks();
-    sendCityData(null, locationAvailable);
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(function(pos) {
-        locationAvailable = true;
-        sendCityData(pos.coords, locationAvailable);
-      }, function() {
-        locationAvailable = false;
-        sendCityData(null, locationAvailable);
-      }, {
-        enableHighAccuracy: false,
-        timeout: 5e3,
-        maximumAge: 6e5
-      });
-    } else {
-      locationAvailable = false;
-      sendCityData(null, locationAvailable);
-    }
-  });
-  Pebble.addEventListener("appmessage", function(event) {
-    const payload = event.payload || {};
-    if (payload.REQUEST_CITY_DATA) {
-      forceResend();
-      sendCityData(null, locationAvailable);
-      return;
-    }
+    sendTimezoneData();
   });
   Pebble.addEventListener("showConfiguration", function() {
-    var url = configDataUri;
-    var watchInfo = Pebble.getActiveWatchInfo();
+    let url = configDataUri;
+    const watchInfo = Pebble.getActiveWatchInfo();
     url += (url.indexOf("?") === -1 ? "?" : "&") + "watchInfo=" + encodeURIComponent(JSON.stringify({
       platform: watchInfo.platform,
       model: watchInfo.model,
@@ -364,10 +153,10 @@
         minor: watchInfo.firmware.minor
       }
     }));
-    var persistedSettings = localStorage.getItem("royaleSettings");
+    const persistedSettings = localStorage.getItem("royaleSettings");
     if (persistedSettings) {
       try {
-        var settings = JSON.parse(persistedSettings);
+        const settings = JSON.parse(persistedSettings);
         url += "&settings=" + encodeURIComponent(JSON.stringify(settings));
       } catch (e) {
         console.log("Error loading persisted settings:", e);
@@ -379,7 +168,7 @@
     if (!e.response || e.response === "CANCELLED" || e.response === "null" || e.response === "{}") {
       return;
     }
-    var configData;
+    let configData;
     try {
       configData = JSON.parse(decodeURIComponent(e.response));
     } catch (err) {
@@ -395,8 +184,6 @@
       delete configData.return_to;
     }
     localStorage.setItem("royaleSettings", JSON.stringify(configData));
-    clearCachedPinnedCities();
-    forceResend();
-    sendCityData(null, locationAvailable);
+    sendTimezoneData();
   });
 })();

@@ -1,48 +1,21 @@
-import { clearCachedPinnedCities, forceResend, sendCityData } from "./city-data.ts";
+import { sendTimezoneData } from "./timezone-data.ts";
 
 const configDataUri = 'http://localhost:3000/royale/';
+const DST_CHECK_INTERVAL_MS = 30 * 60 * 1000;
 
 let dstCheckTimer: number | null = null;
-let locationAvailable: boolean | null = null;
 
+// Checks every 30 minutes if it's DST.
 function startDstChecks() {
   if (dstCheckTimer) clearInterval(dstCheckTimer);
   dstCheckTimer = setInterval(function () {
-    sendCityData(null, locationAvailable);
-  }, 30 * 60 * 1000);
+    sendTimezoneData();
+  }, DST_CHECK_INTERVAL_MS);
 }
 
 Pebble.addEventListener("ready", function () {
   startDstChecks();
-
-  sendCityData(null, locationAvailable);
-
-  if (navigator.geolocation) {
-    navigator.geolocation.getCurrentPosition(function (pos) {
-      locationAvailable = true;
-      sendCityData(pos.coords, locationAvailable);
-    }, function () {
-      locationAvailable = false;
-      sendCityData(null, locationAvailable);
-    }, {
-      enableHighAccuracy: false,
-      timeout: 5000,
-      maximumAge: 600000
-    });
-  } else {
-    locationAvailable = false;
-    sendCityData(null, locationAvailable);
-  }
-});
-
-Pebble.addEventListener("appmessage", function (event) {
-  const payload = event.payload || {};
-
-  if (payload.REQUEST_CITY_DATA) {
-    forceResend();
-    sendCityData(null, locationAvailable);
-    return;
-  }
+  sendTimezoneData();
 });
 
 // ---- Configuration ----
@@ -100,8 +73,6 @@ Pebble.addEventListener('webviewclosed', function (e) {
   // Save to localStorage for persistence
   localStorage.setItem('royaleSettings', JSON.stringify(configData));
 
-  // Clear cached city list and send fresh data to watch
-  clearCachedPinnedCities();
-  forceResend();
-  sendCityData(null, locationAvailable);
+  // Push the new settings and time zone offset to the watch
+  sendTimezoneData();
 });

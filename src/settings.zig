@@ -1,3 +1,5 @@
+const std = @import("std");
+
 const pebble = @import("pebble");
 const presource = @import("pebble_appids");
 
@@ -92,28 +94,40 @@ pub const Settings = struct {
     // }
 };
 
-pub fn settingsRead(key: usize) ?isize {
-    return if (pebble.persist_exists(key)) @intCast(pebble.persist_read_int(key)) else null;
+pub fn settingsRead(key: u32) ?i32 {
+    return if (pebble.persist_exists(key)) pebble.persist_read_int(key) else null;
 }
+
+const PERSIST_SECONDS: u32 = @intFromEnum(presource.MESSAGE_KEYS.SettingsEnableSeconds);
+const PERSIST_TIME_ZONE: u32 = @intFromEnum(presource.MESSAGE_KEYS.SettingsTimeZone);
+const PERSIST_TIME_ZONE_OFFSET_MINUTES: u32 = @intFromEnum(presource.MESSAGE_KEYS.SettingsTimeZoneOffsetMinutes);
 
 pub fn settingsSetSeconds(option: SecondsOptions) void {
     const value: i32 = @intCast(@intFromEnum(option));
-    _ = pebble.persist_write_int(@intFromEnum(presource.MESSAGE_KEYS.SettingsEnableSeconds), value);
+    _ = pebble.persist_write_int(PERSIST_SECONDS, value);
 }
 
 pub fn settingsGetSeconds() SecondsOptions {
-    const read = settingsRead(@intFromEnum(presource.MESSAGE_KEYS.SettingsEnableSeconds));
-    if (read == null) return DEFAULT.seconds else return @enumFromInt(read.?);
+    const raw = settingsRead(PERSIST_SECONDS) orelse return DEFAULT.seconds;
+    return std.enums.fromInt(SecondsOptions, raw) orelse DEFAULT.seconds;
 }
 
 pub fn settingsSetTimeZone(option: TimeZoneOptions) void {
     const value: i32 = @intCast(@intFromEnum(option));
 
-    _ = pebble.persist_write_int(@intFromEnum(presource.MESSAGE_KEYS.SettingsTimeZone), value);
+    _ = pebble.persist_write_int(PERSIST_TIME_ZONE, value);
 }
 
 pub fn settingsGetTimeZone() TimeZoneOptions {
-    const value = settingsRead(@intFromEnum(presource.MESSAGE_KEYS.SettingsTimeZone));
-    if (value == null) return DEFAULT.tz;
-    return @enumFromInt(value.?);
+    const raw = settingsRead(PERSIST_TIME_ZONE) orelse return DEFAULT.tz;
+    return std.enums.fromInt(TimeZoneOptions, raw) orelse DEFAULT.tz;
+}
+
+pub fn settingsSetTimeZoneOffsetMinutes(minutes: i16) void {
+    _ = pebble.persist_write_int(PERSIST_TIME_ZONE_OFFSET_MINUTES, minutes);
+}
+
+pub fn settingsGetTimeZoneOffsetMinutes() i16 {
+    const raw = settingsRead(PERSIST_TIME_ZONE_OFFSET_MINUTES) orelse return null;
+    return @intCast(raw);
 }

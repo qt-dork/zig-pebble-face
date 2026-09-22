@@ -1,5 +1,4 @@
-// bad solution. will move to doing it on the phone later, when i can do better testing
-// doesn't support dst (sorry)
+// Legacy time-zone table. This table is only used before getting the offset from settings.
 
 const pebble = @import("pebble");
 
@@ -7,6 +6,10 @@ const settings = @import("settings.zig");
 
 // time must be in utc
 pub fn offsetTime(from: pebble.tm, tz: settings.TimeZoneOptions) pebble.tm {
+    if (settings.settingsGetTimeZoneOffsetMinutes()) |minutes| {
+        return newTmOffset(from, minutes);
+    }
+
     switch (tz) {
         .PagoPago => return newTm(from, -11, 0),
         .Hololulu => return newTm(from, -10, 0),
@@ -74,6 +77,18 @@ fn newTm(from: pebble.tm, gmtoff: c_int, minoff: c_int) pebble.tm {
     mod.tm_gmtoff = gmtoff;
     mod.tm_hour = wrappingAddHour(mod.tm_hour, gmtoff);
     mod.tm_min = wrappingAddMin(mod.tm_min, minoff);
+    return mod;
+}
+
+fn newTmOffset(from: pebble.tm, minutes: i16) pebble.tm {
+    const total: c_int = @intCast(minutes);
+    const hours: c_int = @divTrunc(total, 60);
+    const mins: c_int = @rem(total, 60);
+
+    var mod = from;
+    mod.tm_gmtoff = total * 60;
+    mod.tm_hour = wrappingAddHour(mod.tm_hour, hours);
+    mod.tm_min = wrappingAddMin(mod.tm_min, mins);
     return mod;
 }
 

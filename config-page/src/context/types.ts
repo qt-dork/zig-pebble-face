@@ -31,7 +31,15 @@ export interface Capabilities {
 }
 
 export interface Settings {
-  SETTING_PINNED_CITIES: string;
-  SETTING_CUSTOM_CITIES: string;
+  /** Screen update frequency. 0 = per second, 1 = per 15s, 2 = per minute. */
+  SETTING_ENABLE_SECONDS: number;
+  /** 0 = MM-DD, 1 = DD-MM. */
   SETTING_DATE_FORMAT: number;
+  /** Index of the cities list. -1 is local time. */
+  SETTING_TIME_ZONE: number;
+
+  // Legacy world-clock settings from Time Traveler.
+  // I'm scared to delete stuff. Since things may break.
+  SETTING_PINNED_CITIES?: string;
+  SETTING_CUSTOM_CITIES?: string;
 }

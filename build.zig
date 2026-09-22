@@ -17,7 +17,7 @@ pub fn build(b: *std.Build) !void {
             .resources = .{ .media = &.{
                 .{ .bitmap = .{ .name = "IMAGE_BT", .file = "bt-icon.png" } }, .{ .bitmap = .{ .name = "IMAGE_BG", .file = "images/bg.png" } }, .{ .bitmap = .{ .name = "SPRITE_PM", .file = "images/pm.png" } }, .{ .bitmap = .{ .name = "TYPE_S", .file = "images/type-small.png" } }, .{ .bitmap = .{ .name = "TYPE_M", .file = "images/type-med.png" } }, .{ .bitmap = .{ .name = "TYPE_L", .file = "images/type-lg.png" } }, .{ .bitmap = .{ .name = "SPRITE_BAT", .file = "images/bat.png" } }, .{ .bitmap = .{ .name = "SPRITE_MAP", .file = "images/map.png" } }, .{ .font = .{ .name = "FONT_DSEG_14", .file = "fonts/dseg14.ttf" } }, .{ .bitmap = .{ .name = "MENU_ICON", .file = "icon.png", .menuIcon = true } },
             } },
-            .messageKeys = &.{ .{ .key = "SettingsEnableSeconds", .value = 10000 }, .{ .key = "SettingsTimeZone", .value = 10001 } },
+            .messageKeys = &.{ .{ .key = "SettingsEnableSeconds", .value = 10000 }, .{ .key = "SettingsTimeZone", .value = 10001 }, .{ .key = "SettingsTimeZoneOffsetMinutes", .value = 10002 }, .{ .key = "SettingsDateFormat", .value = 10003 } },
             .capabilities = &.{.configurable},
         },
         .root_source_file = b.path("src/main.zig"),
