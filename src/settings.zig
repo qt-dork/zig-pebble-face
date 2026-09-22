@@ -127,7 +127,7 @@ pub fn settingsSetTimeZoneOffsetMinutes(minutes: i16) void {
     _ = pebble.persist_write_int(PERSIST_TIME_ZONE_OFFSET_MINUTES, minutes);
 }
 
-pub fn settingsGetTimeZoneOffsetMinutes() i16 {
+pub fn settingsGetTimeZoneOffsetMinutes() ?i16 {
     const raw = settingsRead(PERSIST_TIME_ZONE_OFFSET_MINUTES) orelse return null;
     return @intCast(raw);
 }
