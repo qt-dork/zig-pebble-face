@@ -12,6 +12,8 @@ const utils = @import("utils.zig");
 const State = struct {
     window: ?*pebble.Window = null,
     init_done: bool = false,
+    is_24h: bool = false,
+    date_format: settings.DateFormatOptions = .MonthDay,
     bg_bitmap_layer: ?*pebble.BitmapLayer = null,
     bg_bitmap: ?*pebble.GBitmap = null,
     pm_bitmap_layer: ?*pebble.BitmapLayer = null,
@@ -20,7 +22,8 @@ const State = struct {
     date_layer: ?*pebble.Layer = null,
     s_digits_bitmap: ?*pebble.GBitmap = null,
     s_digits_bitmaps: [10]?*pebble.GBitmap = undefined,
-    date_digits: [3]usize = [_]usize{ 0, 0, 0 },
+    date_digits: [4]usize = [_]usize{ 0, 0, 0, 0 },
+    dash_bitmap: ?*pebble.GBitmap = null,
 
     sec_layer: ?*pebble.Layer = null,
     m_digits_bitmap: ?*pebble.GBitmap = null,
@@ -43,31 +46,65 @@ const State = struct {
     cur_map: ?usize = null,
 
     day_layer: ?*pebble.TextLayer = null,
+    day_faded_layer: ?*pebble.TextLayer = null,
     day_font: pebble.GFont = null,
     day_buffer: [6]u8 = undefined,
+
+    faded_layer: ?*pebble.Layer = null,
+    pm_faded_bitmap: ?*pebble.GBitmap = null,
+    s_digits_faded_bitmap: ?*pebble.GBitmap = null,
+    s_digits_faded_bitmaps: [2]?*pebble.GBitmap = undefined,
+    m_digits_faded_bitmap: ?*pebble.GBitmap = null,
+    l_digits_faded_bitmap: ?*pebble.GBitmap = null,
+    l_digits_faded_bitmaps: [2]?*pebble.GBitmap = undefined,
+    bat_faded_bitmap: ?*pebble.GBitmap = null,
+    bat_faded_bitmaps: [3]?*pebble.GBitmap = undefined,
 
     clock_layer: ?*pebble.Layer = null,
 };
 
-const DATE_DIGIT_WIDTH: i16 = 7;
-const DATE_DIGIT_HEIGHT: i16 = 14;
-const DATE_DIGIT_X: i16 = 147;
-const DATE_DIGIT_Y: i16 = 125;
-const DATE_DIGIT_SKIP: i16 = 6;
+const Pos = struct { x: i16, y: i16 };
+
+const HR_TENS: Pos = .{ .x = 30, .y = 147 };
+const HR_ONES: Pos = .{ .x = 56, .y = 147 };
+const MIN_DIGIT_WIDTH: i16 = 23;
+const MIN_DIGIT_HEIGHT: i16 = 37;
+const MIN_TENS: Pos = .{ .x = 90, .y = 147 };
+const MIN_ONES: Pos = .{ .x = 115, .y = 147 };
 
 const SEC_DIGIT_WIDTH: i16 = 16;
 const SEC_DIGIT_HEIGHT: i16 = 27;
-const SEC_DIGIT_X: i16 = 143;
-const SEC_DIGIT_Y: i16 = 157;
-const SEC_DIGIT_SKIP: i16 = 2;
+const SEC_TENS: Pos = .{ .x = 143, .y = 157 };
+const SEC_ONES: Pos = .{ .x = 161, .y = 157 };
 
-const MIN_DIGIT_WIDTH: i16 = 23;
-const MIN_DIGIT_HEIGHT: i16 = 37;
-const HR_DIGIT_X: i16 = 30;
-const HR_DIGIT_Y: i16 = 147;
-const HR_DIGIT_GAP: i16 = 3;
-const HR_TO_MIN_DIGIT_GAP: i16 = 11;
-const MIN_DIGIT_GAP: i16 = 2;
+const DATE_DIGIT_WIDTH: i16 = 7;
+const DATE_DIGIT_HEIGHT: i16 = 14;
+const DATE_Y: i16 = 125;
+const DATE_DASH_WIDTH: i16 = 3;
+const DATE_DASH_HEIGHT: i16 = 2;
+const DATE_DASH_Y: i16 = 131;
+
+// The date block is 33px wide and reads either MM-DD or DD-MM. The month's
+// leading "1" is a 7px cell whose ink only fills its rightmost 3px, so it is
+// drawn 4px to the left of where its visible ink sits
+const DateLayout = struct {
+    month_tens: i16,
+    month_ones: i16,
+    dash: i16,
+    day_tens: i16,
+    day_ones: i16,
+};
+const DATE_MM_DD: DateLayout = .{ .month_tens = 140, .month_ones = 149, .dash = 157, .day_tens = 161, .day_ones = 170 };
+const DATE_DD_MM: DateLayout = .{ .month_tens = 161, .month_ones = 170, .dash = 161, .day_tens = 144, .day_ones = 153 };
+
+const PM: Pos = .{ .x = 23, .y = 153 };
+const PM_WIDTH: i16 = 17;
+const PM_HEIGHT: i16 = 6;
+
+const DAY_TEXT_RECT: pebble.GRect = .{ .origin = .{ .x = 22, .y = 125 }, .size = .{ .h = 60, .w = 200 } };
+
+// Ghost LCD segments are drawn in #aaffaa (see the faded sprite sheets).
+const FADED_GREEN: pebble.GColor = .{ .argb = 0b11101110 };
 
 const MAP_HEIGHT: i16 = 38;
 const MAP_WIDTH: i16 = 69;
@@ -98,19 +135,21 @@ fn battery_update_proc(_: ?*pebble.Layer, ctx: ?*pebble.GContext) callconv(.c) v
     const count: usize = @divTrunc(s.bat_level + 5, 10);
     pebble.graphics_context_set_compositing_mode(ctx, pebble.GCompOpSet);
 
-    // 0 to 10
+    // Draw all ten ghost segments, then light the charged ones on top
     // 0 means 5% or lower battery
-    // 1 to 10 draws segments
-    if (count > 0) {
-        for (0..10) |i| {
-            if (i < count) {
-                // get dest
-                const x: i16 = if (i == 0) BAT_X else (BAT_MID + ((@as(i16, @intCast(i)) - 1) * BAT_GAP));
-                const point: pebble.GPoint = .{ .x = x, .y = BAT_Y };
-                const size: pebble.GSize = .{ .h = 16, .w = 10 };
+    // 0 has no segments
+    for (0..10) |i| {
+        // get dest
+        const x: i16 = if (i == 0) BAT_X else (BAT_MID + ((@as(i16, @intCast(i)) - 1) * BAT_GAP));
+        const point: pebble.GPoint = .{ .x = x, .y = BAT_Y };
+        const size: pebble.GSize = .{ .h = BAT_HEIGHT, .w = BAT_WIDTH };
 
-                pebble.graphics_draw_bitmap_in_rect(ctx, if (i == 0) s.bat_bitmaps[0] else if (i == 9) s.bat_bitmaps[2] else s.bat_bitmaps[1], .{ .origin = point, .size = size });
-            }
+        const ghost = if (i == 0) s.bat_faded_bitmaps[0] else if (i == 9) s.bat_faded_bitmaps[2] else s.bat_faded_bitmaps[1];
+        pebble.graphics_draw_bitmap_in_rect(ctx, ghost, .{ .origin = point, .size = size });
+
+        if (i < count) {
+            const lit = if (i == 0) s.bat_bitmaps[0] else if (i == 9) s.bat_bitmaps[2] else s.bat_bitmaps[1];
+            pebble.graphics_draw_bitmap_in_rect(ctx, lit, .{ .origin = point, .size = size });
         }
     }
 }
@@ -126,14 +165,19 @@ fn updateClock() void {
     _ = pebble.time(&raw_time);
     time_info = pebble.localtime(&raw_time);
 
-    if (s.init_done and settings.settingsGetSeconds() == .PerFifteen and @rem(time_info.?.tm_sec, 15) != 0) return;
-
-    // am/pm
-    if (time_info.?.tm_hour > 11) {
-        pebble.layer_set_hidden(pebble.bitmap_layer_get_layer(s.pm_bitmap_layer), false);
-    } else {
-        pebble.layer_set_hidden(pebble.bitmap_layer_get_layer(s.pm_bitmap_layer), true);
+    const is_24h = settings.settingsIs24Hour();
+    const mode_changed = is_24h != s.is_24h;
+    if (mode_changed) {
+        s.is_24h = is_24h;
+        pebble.layer_mark_dirty(s.faded_layer);
+        pebble.layer_mark_dirty(s.min_layer);
     }
+
+    if (s.init_done and settings.settingsGetSeconds() == .PerFifteen and @rem(time_info.?.tm_sec, 15) != 0 and !mode_changed) return;
+
+    // am/pm (only in 12h mode)
+    const pm_visible = !s.is_24h and time_info.?.tm_hour > 11;
+    pebble.layer_set_hidden(pebble.bitmap_layer_get_layer(s.pm_bitmap_layer), !pm_visible);
 
     // date
     const month: usize = @intCast(time_info.?.tm_mon + 1);
@@ -220,28 +264,43 @@ fn setDay(_: usize) void {
     pebble.text_layer_set_text(s.day_layer, &s.day_buffer);
 }
 
+fn dateLayout() DateLayout {
+    return if (s.date_format == .DayMonth) DATE_DD_MM else DATE_MM_DD;
+}
+
+fn drawAt(ctx: ?*pebble.GContext, bmp: ?*pebble.GBitmap, x: i16, y: i16, size: pebble.GSize) void {
+    pebble.graphics_draw_bitmap_in_rect(ctx, bmp, .{ .origin = .{ .x = x, .y = y }, .size = size });
+}
+
 fn updateDate(_: ?*pebble.Layer, ctx: ?*pebble.GContext) callconv(.c) void {
     pebble.graphics_context_set_compositing_mode(ctx, pebble.GCompOpSet);
 
-    const month = s.date_digits[0];
-    const month_dest: pebble.GRect = .{ .origin = .{ .x = DATE_DIGIT_X, .y = DATE_DIGIT_Y }, .size = .{ .h = DATE_DIGIT_HEIGHT, .w = DATE_DIGIT_WIDTH } };
-    pebble.graphics_draw_bitmap_in_rect(ctx, s.s_digits_bitmaps[month], month_dest);
-    const day_x_offset = DATE_DIGIT_X + DATE_DIGIT_WIDTH + 6; // 6 is the width of the dash
-    const tens_day_dest: pebble.GRect = .{ .origin = .{ .x = day_x_offset, .y = DATE_DIGIT_Y }, .size = .{ .h = DATE_DIGIT_HEIGHT, .w = DATE_DIGIT_WIDTH } };
-    const ones_day_dest: pebble.GRect = .{ .origin = .{ .x = day_x_offset + DATE_DIGIT_WIDTH + 2, .y = DATE_DIGIT_Y }, .size = .{ .h = DATE_DIGIT_HEIGHT, .w = DATE_DIGIT_WIDTH } };
-    pebble.graphics_draw_bitmap_in_rect(ctx, s.s_digits_bitmaps[s.date_digits[1]], tens_day_dest);
-    pebble.graphics_draw_bitmap_in_rect(ctx, s.s_digits_bitmaps[s.date_digits[2]], ones_day_dest);
+    const layout = dateLayout();
+    const size = pebble.GSize{ .h = DATE_DIGIT_HEIGHT, .w = DATE_DIGIT_WIDTH };
+
+    // The month-tens slot only ever holds a "1" (months 10-12); for months 1-9 it
+    // stays blank so the faded "1" ghost shows through, mirroring the 12h hour tens.
+    if (s.date_digits[0] != 0) {
+        drawAt(ctx, s.s_digits_bitmaps[s.date_digits[0]], layout.month_tens, DATE_Y, size);
+    }
+    drawAt(ctx, s.s_digits_bitmaps[s.date_digits[1]], layout.month_ones, DATE_Y, size);
+    drawAt(ctx, s.s_digits_bitmaps[s.date_digits[2]], layout.day_tens, DATE_Y, size);
+    drawAt(ctx, s.s_digits_bitmaps[s.date_digits[3]], layout.day_ones, DATE_Y, size);
+
+    const dash_dest = pebble.GRect{ .origin = .{ .x = layout.dash, .y = DATE_DASH_Y }, .size = .{ .h = DATE_DASH_HEIGHT, .w = DATE_DASH_WIDTH } };
+    pebble.graphics_draw_bitmap_in_rect(ctx, s.dash_bitmap, dash_dest);
 }
 
 fn setDate(month: usize, day: usize) void {
-    const old_month = s.date_digits[0];
-    const old_day = (s.date_digits[1] * 10) + s.date_digits[2];
+    const old_month = (s.date_digits[0] * 10) + s.date_digits[1];
+    const old_day = (s.date_digits[2] * 10) + s.date_digits[3];
     if (old_month == month and old_day == day) {
         return;
     }
-    s.date_digits[0] = month;
-    s.date_digits[1] = @divTrunc(day, 10);
-    s.date_digits[2] = day % 10;
+    s.date_digits[0] = @divTrunc(month, 10);
+    s.date_digits[1] = month % 10;
+    s.date_digits[2] = @divTrunc(day, 10);
+    s.date_digits[3] = day % 10;
 
     pebble.layer_mark_dirty(s.date_layer);
 }
@@ -249,10 +308,9 @@ fn setDate(month: usize, day: usize) void {
 fn updateSec(_: ?*pebble.Layer, ctx: ?*pebble.GContext) callconv(.c) void {
     pebble.graphics_context_set_compositing_mode(ctx, pebble.GCompOpSet);
 
-    const tens_sec_dest: pebble.GRect = .{ .origin = .{ .x = SEC_DIGIT_X, .y = SEC_DIGIT_Y }, .size = .{ .h = SEC_DIGIT_HEIGHT, .w = SEC_DIGIT_WIDTH } };
-    const ones_sec_dest: pebble.GRect = .{ .origin = .{ .x = SEC_DIGIT_X + SEC_DIGIT_WIDTH + 2, .y = SEC_DIGIT_Y }, .size = .{ .h = SEC_DIGIT_HEIGHT, .w = SEC_DIGIT_WIDTH } };
-    pebble.graphics_draw_bitmap_in_rect(ctx, s.m_digits_bitmaps[s.sec_digits[0]], tens_sec_dest);
-    pebble.graphics_draw_bitmap_in_rect(ctx, s.m_digits_bitmaps[s.sec_digits[1]], ones_sec_dest);
+    const size = pebble.GSize{ .h = SEC_DIGIT_HEIGHT, .w = SEC_DIGIT_WIDTH };
+    drawAt(ctx, s.m_digits_bitmaps[s.sec_digits[0]], SEC_TENS.x, SEC_TENS.y, size);
+    drawAt(ctx, s.m_digits_bitmaps[s.sec_digits[1]], SEC_ONES.x, SEC_ONES.y, size);
 }
 
 fn setSec(sec: usize) void {
@@ -266,43 +324,70 @@ fn setSec(sec: usize) void {
 fn updateMin(_: ?*pebble.Layer, ctx: ?*pebble.GContext) callconv(.c) void {
     pebble.graphics_context_set_compositing_mode(ctx, pebble.GCompOpSet);
 
-    const min_size = pebble.GSize{
-        .h = MIN_DIGIT_HEIGHT,
-        .w = MIN_DIGIT_WIDTH,
-    };
-    const tens_hr_dest: pebble.GRect = .{ .origin = .{ .x = HR_DIGIT_X, .y = HR_DIGIT_Y }, .size = min_size };
-    const ones_hr_dest: pebble.GRect = .{ .origin = .{ .x = HR_DIGIT_X + MIN_DIGIT_WIDTH + HR_DIGIT_GAP, .y = HR_DIGIT_Y }, .size = min_size };
+    const size = pebble.GSize{ .h = MIN_DIGIT_HEIGHT, .w = MIN_DIGIT_WIDTH };
 
-    const min_digit_x = HR_DIGIT_X + (MIN_DIGIT_WIDTH * 2) + (HR_DIGIT_GAP + HR_TO_MIN_DIGIT_GAP);
-    const tens_min_dest: pebble.GRect = .{ .origin = .{ .x = min_digit_x, .y = HR_DIGIT_Y }, .size = min_size };
-    const ones_min_dest: pebble.GRect = .{ .origin = .{ .x = min_digit_x + MIN_DIGIT_WIDTH + MIN_DIGIT_GAP, .y = HR_DIGIT_Y }, .size = min_size };
-
-    if (s.min_digits[0] == 1) {
-        pebble.graphics_draw_bitmap_in_rect(ctx, s.l_digits_bitmaps[s.min_digits[0]], tens_hr_dest);
+    if (s.min_digits[0] != 0) {
+        drawAt(ctx, s.l_digits_bitmaps[s.min_digits[0]], HR_TENS.x, HR_TENS.y, size);
     }
-    pebble.graphics_draw_bitmap_in_rect(ctx, s.l_digits_bitmaps[s.min_digits[1]], ones_hr_dest);
-    pebble.graphics_draw_bitmap_in_rect(ctx, s.l_digits_bitmaps[s.min_digits[2]], tens_min_dest);
-    pebble.graphics_draw_bitmap_in_rect(ctx, s.l_digits_bitmaps[s.min_digits[3]], ones_min_dest);
+    drawAt(ctx, s.l_digits_bitmaps[s.min_digits[1]], HR_ONES.x, HR_ONES.y, size);
+    drawAt(ctx, s.l_digits_bitmaps[s.min_digits[2]], MIN_TENS.x, MIN_TENS.y, size);
+    drawAt(ctx, s.l_digits_bitmaps[s.min_digits[3]], MIN_ONES.x, MIN_ONES.y, size);
+}
+
+fn twelveHour(hr: usize) usize {
+    const h = hr % 12;
+    return if (h == 0) 12 else h;
 }
 
 fn setMin(hr: usize, min: usize) void {
+    const shown_hr = if (s.is_24h) hr else twelveHour(hr);
+
     // useless checking to avoid marking dirty. will fix later.
     const old_hr = (s.min_digits[0] * 10) + s.min_digits[1];
     const old_min = (s.min_digits[2] * 10) + s.min_digits[3];
-    if (old_hr == hr and old_min == min) {
+    if (old_hr == shown_hr and old_min == min) {
         return;
     }
 
-    var twelve_hr = hr % 12; // I don't yet support 24 hour mode so i'm forcing 12 hour mode. i will add it soon.
-    twelve_hr = if (twelve_hr == 0) 12 else twelve_hr; // bad code
-
-    s.min_digits[0] = @divTrunc(twelve_hr, 10);
-    s.min_digits[1] = twelve_hr % 10;
+    s.min_digits[0] = @divTrunc(shown_hr, 10);
+    s.min_digits[1] = shown_hr % 10;
 
     s.min_digits[2] = @divTrunc(min, 10);
     s.min_digits[3] = min % 10;
 
     pebble.layer_mark_dirty(s.min_layer);
+}
+
+fn updateFaded(_: ?*pebble.Layer, ctx: ?*pebble.GContext) callconv(.c) void {
+    pebble.graphics_context_set_compositing_mode(ctx, pebble.GCompOpSet);
+
+    const large = pebble.GSize{ .h = MIN_DIGIT_HEIGHT, .w = MIN_DIGIT_WIDTH };
+    const medium = pebble.GSize{ .h = SEC_DIGIT_HEIGHT, .w = SEC_DIGIT_WIDTH };
+
+    // hours
+    drawAt(ctx, s.l_digits_faded_bitmaps[if (s.is_24h) 1 else 0], HR_TENS.x, HR_TENS.y, large);
+    drawAt(ctx, s.l_digits_faded_bitmaps[1], HR_ONES.x, HR_ONES.y, large);
+
+    // minutes
+    drawAt(ctx, s.l_digits_faded_bitmaps[1], MIN_TENS.x, MIN_TENS.y, large);
+    drawAt(ctx, s.l_digits_faded_bitmaps[1], MIN_ONES.x, MIN_ONES.y, large);
+
+    // seconds
+    drawAt(ctx, s.m_digits_faded_bitmap, SEC_TENS.x, SEC_TENS.y, medium);
+    drawAt(ctx, s.m_digits_faded_bitmap, SEC_ONES.x, SEC_ONES.y, medium);
+
+    // date - a "1" is always in the tens slot for month
+    const layout = dateLayout();
+    const date_size = pebble.GSize{ .h = DATE_DIGIT_HEIGHT, .w = DATE_DIGIT_WIDTH };
+    drawAt(ctx, s.s_digits_faded_bitmaps[0], layout.month_tens, DATE_Y, date_size);
+    drawAt(ctx, s.s_digits_faded_bitmaps[1], layout.month_ones, DATE_Y, date_size);
+    drawAt(ctx, s.s_digits_faded_bitmaps[1], layout.day_tens, DATE_Y, date_size);
+    drawAt(ctx, s.s_digits_faded_bitmaps[1], layout.day_ones, DATE_Y, date_size);
+
+    // pm indicator (12h only)
+    if (!s.is_24h) {
+        drawAt(ctx, s.pm_faded_bitmap, PM.x, PM.y, pebble.GSize{ .h = PM_HEIGHT, .w = PM_WIDTH });
+    }
 }
 
 fn updateMap(_: ?*pebble.Layer, ctx: ?*pebble.GContext) callconv(.c) void {
@@ -320,8 +405,11 @@ fn updateMap(_: ?*pebble.Layer, ctx: ?*pebble.GContext) callconv(.c) void {
 }
 
 fn forceUpdate() void {
+    s.date_format = settings.settingsGetDateFormat();
+
     updateClock();
 
+    pebble.layer_mark_dirty(s.faded_layer);
     pebble.layer_mark_dirty(s.bat_layer);
     pebble.layer_mark_dirty(s.date_layer);
     pebble.layer_mark_dirty(s.clock_layer);
@@ -339,6 +427,9 @@ fn window_load(window: ?*pebble.Window) callconv(.c) void {
     const window_layer = pebble.window_get_root_layer(window);
     const bounds = pebble.layer_get_bounds(window_layer);
 
+    s.is_24h = settings.settingsIs24Hour();
+    s.date_format = settings.settingsGetDateFormat();
+
     s.bg_bitmap = pebble.gbitmap_create_with_resource(@intFromEnum(presource.RESOURCE_IDS.IMAGE_BG));
     s.bg_bitmap_layer = pebble.bitmap_layer_create(bounds);
 
@@ -347,8 +438,38 @@ fn window_load(window: ?*pebble.Window) callconv(.c) void {
 
     pebble.layer_add_child(window_layer, pebble.bitmap_layer_get_layer(s.bg_bitmap_layer));
 
+    // Faded/ghost LCD layer
+    s.faded_layer = pebble.layer_create(bounds);
+    pebble.layer_set_update_proc(s.faded_layer, updateFaded);
+    pebble.layer_add_child(window_layer, s.faded_layer);
+
+    s.pm_faded_bitmap = pebble.gbitmap_create_with_resource(@intFromEnum(presource.RESOURCE_IDS.SPRITE_PM_FADED));
+
+    s.s_digits_faded_bitmap = pebble.gbitmap_create_with_resource(@intFromEnum(presource.RESOURCE_IDS.TYPE_S_FADED));
+    for (0..2) |i| {
+        const idx: i16 = @intCast(i);
+        const coords: pebble.GRect = .{ .origin = .{ .x = idx * DATE_DIGIT_WIDTH, .y = 0 }, .size = .{ .h = DATE_DIGIT_HEIGHT, .w = DATE_DIGIT_WIDTH } };
+        s.s_digits_faded_bitmaps[i] = pebble.gbitmap_create_as_sub_bitmap(s.s_digits_faded_bitmap, coords);
+    }
+
+    s.m_digits_faded_bitmap = pebble.gbitmap_create_with_resource(@intFromEnum(presource.RESOURCE_IDS.TYPE_M_FADED));
+
+    s.l_digits_faded_bitmap = pebble.gbitmap_create_with_resource(@intFromEnum(presource.RESOURCE_IDS.TYPE_L_FADED));
+    for (0..2) |i| {
+        const idx: i16 = @intCast(i);
+        const coords: pebble.GRect = .{ .origin = .{ .x = idx * MIN_DIGIT_WIDTH, .y = 0 }, .size = .{ .h = MIN_DIGIT_HEIGHT, .w = MIN_DIGIT_WIDTH } };
+        s.l_digits_faded_bitmaps[i] = pebble.gbitmap_create_as_sub_bitmap(s.l_digits_faded_bitmap, coords);
+    }
+
+    s.bat_faded_bitmap = pebble.gbitmap_create_with_resource(@intFromEnum(presource.RESOURCE_IDS.SPRITE_BAT_FADED));
+    for (0..3) |i| {
+        const idx: i16 = @intCast(i);
+        const coords: pebble.GRect = .{ .origin = .{ .x = idx * BAT_WIDTH, .y = 0 }, .size = .{ .h = BAT_HEIGHT, .w = BAT_WIDTH } };
+        s.bat_faded_bitmaps[i] = pebble.gbitmap_create_as_sub_bitmap(s.bat_faded_bitmap, coords);
+    }
+
     s.pm_bitmap = pebble.gbitmap_create_with_resource(@intFromEnum(presource.RESOURCE_IDS.SPRITE_PM));
-    s.pm_bitmap_layer = pebble.bitmap_layer_create(.{ .origin = .{ .x = 23, .y = 153 }, .size = .{ .h = 6, .w = 17 } });
+    s.pm_bitmap_layer = pebble.bitmap_layer_create(.{ .origin = .{ .x = PM.x, .y = PM.y }, .size = .{ .h = PM_HEIGHT, .w = PM_WIDTH } });
 
     pebble.bitmap_layer_set_compositing_mode(s.pm_bitmap_layer, pebble.GCompOpSet);
     pebble.bitmap_layer_set_bitmap(s.pm_bitmap_layer, s.pm_bitmap);
@@ -365,6 +486,8 @@ fn window_load(window: ?*pebble.Window) callconv(.c) void {
 
         s.s_digits_bitmaps[i] = pebble.gbitmap_create_as_sub_bitmap(s.s_digits_bitmap, coords);
     }
+
+    s.dash_bitmap = pebble.gbitmap_create_with_resource(@intFromEnum(presource.RESOURCE_IDS.SPRITE_DASH));
 
     s.sec_layer = pebble.layer_create(bounds);
     pebble.layer_set_update_proc(s.sec_layer, updateSec);
@@ -396,9 +519,18 @@ fn window_load(window: ?*pebble.Window) callconv(.c) void {
         s.bat_bitmaps[i] = pebble.gbitmap_create_as_sub_bitmap(s.bat_bitmap, coords);
     }
 
-    // s.day_layer = pebble.text_layer_create(.{ .origin = .{ .x = 106, .y = 125 }, .size = .{ .w = 31, .h = 14 } });
-    s.day_layer = pebble.text_layer_create(.{ .origin = .{ .x = 22, .y = 125 }, .size = .{ .h = 60, .w = 200 } });
     s.day_font = pebble.fonts_load_custom_font(pebble.resource_get_handle(@intFromEnum(presource.RESOURCE_IDS.FONT_DSEG_14)));
+
+    // Day-of-week ghost
+    s.day_faded_layer = pebble.text_layer_create(DAY_TEXT_RECT);
+    pebble.text_layer_set_font(s.day_faded_layer, s.day_font);
+    pebble.text_layer_set_background_color(s.day_faded_layer, pebble.GColorClear);
+    pebble.text_layer_set_text_color(s.day_faded_layer, FADED_GREEN);
+    pebble.text_layer_set_text_alignment(s.day_faded_layer, pebble.GTextAlignmentCenter);
+    pebble.text_layer_set_text(s.day_faded_layer, "~~~");
+    pebble.layer_add_child(window_layer, pebble.text_layer_get_layer(s.day_faded_layer));
+
+    s.day_layer = pebble.text_layer_create(DAY_TEXT_RECT);
     pebble.text_layer_set_font(s.day_layer, s.day_font);
     pebble.text_layer_set_background_color(s.day_layer, pebble.GColorClear);
     pebble.text_layer_set_text_color(s.day_layer, pebble.GColorBlack);
@@ -427,8 +559,24 @@ fn window_unload(_: ?*pebble.Window) callconv(.c) void {
     pebble.gbitmap_destroy(s.bg_bitmap);
     pebble.bitmap_layer_destroy(s.bg_bitmap_layer);
 
+    pebble.gbitmap_destroy(s.pm_faded_bitmap);
+    for (0..2) |i| {
+        pebble.gbitmap_destroy(s.s_digits_faded_bitmaps[i]);
+        pebble.gbitmap_destroy(s.l_digits_faded_bitmaps[i]);
+    }
+    pebble.gbitmap_destroy(s.s_digits_faded_bitmap);
+    pebble.gbitmap_destroy(s.m_digits_faded_bitmap);
+    pebble.gbitmap_destroy(s.l_digits_faded_bitmap);
+    for (0..3) |i| {
+        pebble.gbitmap_destroy(s.bat_faded_bitmaps[i]);
+    }
+    pebble.gbitmap_destroy(s.bat_faded_bitmap);
+    pebble.layer_destroy(s.faded_layer);
+
     pebble.gbitmap_destroy(s.pm_bitmap);
     pebble.bitmap_layer_destroy(s.pm_bitmap_layer);
+
+    pebble.gbitmap_destroy(s.dash_bitmap);
 
     for (0..10) |i| {
         pebble.gbitmap_destroy(s.s_digits_bitmaps[i]);
@@ -449,6 +597,7 @@ fn window_unload(_: ?*pebble.Window) callconv(.c) void {
     pebble.layer_destroy(s.bat_layer);
 
     pebble.fonts_unload_custom_font(s.day_font);
+    pebble.text_layer_destroy(s.day_faded_layer);
     pebble.text_layer_destroy(s.day_layer);
 
     for (0..20) |i| {

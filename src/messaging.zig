@@ -11,20 +11,30 @@ const MessagingCallback = *const fn () void;
 
 var on_update: MessagingCallback = undefined;
 
-fn inbox_received_handler(iter: [*c]pebble.DictionaryIterator, _: ?*anyopaque) callconv(.c) void {
-    const seconds_tuple = pebble.dict_find(iter, @intFromEnum(presource.MESSAGE_KEYS.SettingsEnableSeconds));
-    const seconds: ?i32 = if (seconds_tuple) |t| blk: {
-        const s = std.mem.span(t.*.value().*.cstring());
-        break :blk std.fmt.parseInt(i32, s, 10) catch null;
-    } else null;
-    if (seconds) |t| settings.settingsSetSeconds(@enumFromInt(t));
+const TUPLE_INT: u8 = @intCast(pebble.TUPLE_INT);
+const TUPLE_UINT: u8 = @intCast(pebble.TUPLE_UINT);
+const TUPLE_CSTRING: u8 = @intCast(pebble.TUPLE_CSTRING);
 
-    const timezone_tuple = pebble.dict_find(iter, @intFromEnum(presource.MESSAGE_KEYS.SettingsTimeZone));
-    const timezone: ?i32 = if (timezone_tuple) |t| blk: {
-        const s = std.mem.span(t.*.value().*.cstring());
-        break :blk std.fmt.parseInt(i32, s, 10) catch null;
-    } else null;
-    if (timezone) |t| settings.settingsSetTimeZone(@enumFromInt(t));
+fn lookupInt(iter: [*c]pebble.DictionaryIterator, key: u32) ?i32 {
+    const tuple = pebble.dict_find(iter, key) orelse return null;
+    if (tuple.*.type == TUPLE_INT) return tuple.*.value().*.int32;
+    if (tuple.*.type == TUPLE_UINT) return std.math.cast(i32, tuple.*.value().*.uint32);
+    if (tuple.*.type == TUPLE_CSTRING) return std.fmt.parseInt(i32, std.mem.span(tuple.*.value().*.cstring()), 10) catch null;
+    return null;
+}
+
+fn inbox_received_handler(iter: [*c]pebble.DictionaryIterator, _: ?*anyopaque) callconv(.c) void {
+    if (lookupInt(iter, @intFromEnum(presource.MESSAGE_KEYS.SettingsEnableSeconds))) |value| {
+        if (std.enums.fromInt(settings.SecondsOptions, value)) |option| settings.settingsSetSeconds(option);
+    }
+
+    if (lookupInt(iter, @intFromEnum(presource.MESSAGE_KEYS.SettingsDateFormat))) |value| {
+        if (std.enums.fromInt(settings.DateFormatOptions, value)) |option| settings.settingsSetDateFormat(option);
+    }
+
+    if (lookupInt(iter, @intFromEnum(presource.MESSAGE_KEYS.SettingsTimeZone))) |value| {
+        if (std.enums.fromInt(settings.TimeZoneOptions, value)) |option| settings.settingsSetTimeZone(option);
+    }
 
     on_update();
 }

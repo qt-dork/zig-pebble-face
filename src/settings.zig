@@ -27,6 +27,11 @@ pub const SecondsOptions = enum(isize) {
     PerMinute = 2,
 };
 
+pub const DateFormatOptions = enum(isize) {
+    MonthDay = 0,
+    DayMonth = 1,
+};
+
 pub const TimeZoneOptions = enum(isize) {
     None = -1,
     PagoPago = 0,
@@ -85,6 +90,7 @@ const DEFAULT = Settings{};
 pub const Settings = struct {
     seconds: SecondsOptions = SecondsOptions.PerSecond,
     tz: TimeZoneOptions = TimeZoneOptions.None,
+    date_format: DateFormatOptions = DateFormatOptions.MonthDay,
 
     // pub fn toClay(self: @This()) ClaySettings {
     //     return .{
@@ -101,6 +107,7 @@ pub fn settingsRead(key: u32) ?i32 {
 const PERSIST_SECONDS: u32 = @intFromEnum(presource.MESSAGE_KEYS.SettingsEnableSeconds);
 const PERSIST_TIME_ZONE: u32 = @intFromEnum(presource.MESSAGE_KEYS.SettingsTimeZone);
 const PERSIST_TIME_ZONE_OFFSET_MINUTES: u32 = @intFromEnum(presource.MESSAGE_KEYS.SettingsTimeZoneOffsetMinutes);
+const PERSIST_DATE_FORMAT: u32 = @intFromEnum(presource.MESSAGE_KEYS.SettingsDateFormat);
 
 pub fn settingsSetSeconds(option: SecondsOptions) void {
     const value: i32 = @intCast(@intFromEnum(option));
@@ -130,4 +137,19 @@ pub fn settingsSetTimeZoneOffsetMinutes(minutes: i16) void {
 pub fn settingsGetTimeZoneOffsetMinutes() ?i16 {
     const raw = settingsRead(PERSIST_TIME_ZONE_OFFSET_MINUTES) orelse return null;
     return @intCast(raw);
+}
+
+pub fn settingsSetDateFormat(option: DateFormatOptions) void {
+    const value: i32 = @intCast(@intFromEnum(option));
+    _ = pebble.persist_write_int(PERSIST_DATE_FORMAT, value);
+}
+
+pub fn settingsGetDateFormat() DateFormatOptions {
+    const raw = settingsRead(PERSIST_DATE_FORMAT) orelse return DEFAULT.date_format;
+    return std.enums.fromInt(DateFormatOptions, raw) orelse DEFAULT.date_format;
+}
+
+// System setting
+pub fn settingsIs24Hour() bool {
+    return pebble.clock_is_24h_style();
 }
