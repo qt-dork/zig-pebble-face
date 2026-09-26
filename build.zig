@@ -9,7 +9,7 @@ pub fn build(b: *std.Build) !void {
             .displayName = "Royale",
             .author = "Evie Finch",
             .uuid = "f066c042-84e6-4a3e-aaa6-28c517aafcd1",
-            .version = .{ .major = 1, .minor = 2 },
+            .version = .{ .major = 2, .minor = 0 },
             .targetPlatforms = &.{.emery},
             .watchapp = .{
                 .watchface = true,

@@ -63,7 +63,7 @@ const State = struct {
     clock_layer: ?*pebble.Layer = null,
 };
 
-const Pos = struct { x: i16, y: i16 };
+const Pos = pebble.GPoint;
 
 const HR_TENS: Pos = .{ .x = 30, .y = 147 };
 const HR_ONES: Pos = .{ .x = 56, .y = 147 };
@@ -72,8 +72,7 @@ const MIN_DIGIT_HEIGHT: i16 = 37;
 const MIN_TENS: Pos = .{ .x = 90, .y = 147 };
 const MIN_ONES: Pos = .{ .x = 115, .y = 147 };
 
-const SEC_DIGIT_WIDTH: i16 = 16;
-const SEC_DIGIT_HEIGHT: i16 = 27;
+const SEC_DIGIT_SIZE: pebble.GSize = .{ .w = 16, .h = 27 };
 const SEC_TENS: Pos = .{ .x = 143, .y = 157 };
 const SEC_ONES: Pos = .{ .x = 161, .y = 157 };
 
@@ -278,8 +277,6 @@ fn updateDate(_: ?*pebble.Layer, ctx: ?*pebble.GContext) callconv(.c) void {
     const layout = dateLayout();
     const size = pebble.GSize{ .h = DATE_DIGIT_HEIGHT, .w = DATE_DIGIT_WIDTH };
 
-    // The month-tens slot only ever holds a "1" (months 10-12); for months 1-9 it
-    // stays blank so the faded "1" ghost shows through, mirroring the 12h hour tens.
     if (s.date_digits[0] != 0) {
         drawAt(ctx, s.s_digits_bitmaps[s.date_digits[0]], layout.month_tens, DATE_Y, size);
     }
@@ -308,9 +305,8 @@ fn setDate(month: usize, day: usize) void {
 fn updateSec(_: ?*pebble.Layer, ctx: ?*pebble.GContext) callconv(.c) void {
     pebble.graphics_context_set_compositing_mode(ctx, pebble.GCompOpSet);
 
-    const size = pebble.GSize{ .h = SEC_DIGIT_HEIGHT, .w = SEC_DIGIT_WIDTH };
-    drawAt(ctx, s.m_digits_bitmaps[s.sec_digits[0]], SEC_TENS.x, SEC_TENS.y, size);
-    drawAt(ctx, s.m_digits_bitmaps[s.sec_digits[1]], SEC_ONES.x, SEC_ONES.y, size);
+    drawAt(ctx, s.m_digits_bitmaps[s.sec_digits[0]], SEC_TENS.x, SEC_TENS.y, SEC_DIGIT_SIZE);
+    drawAt(ctx, s.m_digits_bitmaps[s.sec_digits[1]], SEC_ONES.x, SEC_ONES.y, SEC_DIGIT_SIZE);
 }
 
 fn setSec(sec: usize) void {
@@ -362,7 +358,6 @@ fn updateFaded(_: ?*pebble.Layer, ctx: ?*pebble.GContext) callconv(.c) void {
     pebble.graphics_context_set_compositing_mode(ctx, pebble.GCompOpSet);
 
     const large = pebble.GSize{ .h = MIN_DIGIT_HEIGHT, .w = MIN_DIGIT_WIDTH };
-    const medium = pebble.GSize{ .h = SEC_DIGIT_HEIGHT, .w = SEC_DIGIT_WIDTH };
 
     // hours
     drawAt(ctx, s.l_digits_faded_bitmaps[if (s.is_24h) 1 else 0], HR_TENS.x, HR_TENS.y, large);
@@ -373,8 +368,8 @@ fn updateFaded(_: ?*pebble.Layer, ctx: ?*pebble.GContext) callconv(.c) void {
     drawAt(ctx, s.l_digits_faded_bitmaps[1], MIN_ONES.x, MIN_ONES.y, large);
 
     // seconds
-    drawAt(ctx, s.m_digits_faded_bitmap, SEC_TENS.x, SEC_TENS.y, medium);
-    drawAt(ctx, s.m_digits_faded_bitmap, SEC_ONES.x, SEC_ONES.y, medium);
+    drawAt(ctx, s.m_digits_faded_bitmap, SEC_TENS.x, SEC_TENS.y, SEC_DIGIT_SIZE);
+    drawAt(ctx, s.m_digits_faded_bitmap, SEC_ONES.x, SEC_ONES.y, SEC_DIGIT_SIZE);
 
     // date - a "1" is always in the tens slot for month
     const layout = dateLayout();
@@ -495,7 +490,7 @@ fn window_load(window: ?*pebble.Window) callconv(.c) void {
     s.m_digits_bitmap = pebble.gbitmap_create_with_resource(@intFromEnum(presource.RESOURCE_IDS.TYPE_M));
     for (0..10) |i| {
         const idx: i16 = @intCast(i);
-        const coords: pebble.GRect = .{ .origin = .{ .x = idx * SEC_DIGIT_WIDTH, .y = 0 }, .size = .{ .h = SEC_DIGIT_HEIGHT, .w = SEC_DIGIT_WIDTH } }; // error from grect being bad?
+        const coords: pebble.GRect = .{ .origin = .{ .x = idx * SEC_DIGIT_SIZE.w, .y = 0 }, .size = SEC_DIGIT_SIZE }; // error from grect being bad?
         s.m_digits_bitmaps[i] = pebble.gbitmap_create_as_sub_bitmap(s.m_digits_bitmap, coords);
     }
 
