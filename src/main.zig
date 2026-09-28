@@ -6,7 +6,6 @@ const messaging = @import("messaging.zig");
 const settings = @import("settings.zig");
 const tz = @import("tz.zig");
 const utils = @import("utils.zig");
-const pog = @import("pog.zig");
 
 const State = struct {
     window: ?*pb.Window = null,
@@ -145,11 +144,11 @@ fn battery_update_proc(_: ?*pb.Layer, ctx: ?*pb.GContext) callconv(.c) void {
         };
 
         const ghost = if (i == 0) s.bat_faded_bitmaps[0] else if (i == 9) s.bat_faded_bitmaps[2] else s.bat_faded_bitmaps[1];
-        pb.graphics_draw_bitmap_in_rect(ctx, ghost, dest);
+        if (ghost) |g| pb.graphics_draw_bitmap_in_rect(ctx, g, dest);
 
         if (i < count) {
             const lit = if (i == 0) s.bat_bitmaps[0] else if (i == 9) s.bat_bitmaps[2] else s.bat_bitmaps[1];
-            pb.graphics_draw_bitmap_in_rect(ctx, lit, dest);
+            if (lit) |l| pb.graphics_draw_bitmap_in_rect(ctx, l, dest);
         }
     }
 }
@@ -177,10 +176,7 @@ fn updateClock() void {
 
     // am/pm (only in 12h mode)
     const pm_visible = !s.is_24h and time_info.?.tm_hour > 11;
-    const pm_layer = try pebble.layer.ofBitmap(s.pm_bitmap_layer) catch {
-        pog.err(@src(), "updateClock: pm_bitmap_layer has no layer", .{});
-        return;
-    };
+    const pm_layer = pebble.layer.ofBitmap(s.pm_bitmap_layer) catch return;
     pebble.layer.setHidden(pm_layer, !pm_visible);
 
     // date
@@ -273,6 +269,7 @@ fn dateLayout() DateLayout {
 }
 
 fn drawAt(ctx: ?*pb.GContext, bmp: ?*pb.GBitmap, x: i16, y: i16, size: pb.GSize) void {
+    if (bmp == null) return;
     const dest: pb.GRect = .{ .origin = .{ .x = x, .y = y }, .size = size };
     pb.graphics_draw_bitmap_in_rect(ctx, bmp, dest);
 }
@@ -294,7 +291,7 @@ fn updateDate(_: ?*pb.Layer, ctx: ?*pb.GContext) callconv(.c) void {
         .origin = .{ .x = layout.dash, .y = DATE_DASH_Y },
         .size = .{ .h = DATE_DASH_HEIGHT, .w = DATE_DASH_WIDTH },
     };
-    pb.graphics_draw_bitmap_in_rect(ctx, s.dash_bitmap, dash_dest);
+    if (s.dash_bitmap) |dash| pb.graphics_draw_bitmap_in_rect(ctx, dash, dash_dest);
 }
 
 fn setDate(month: usize, day: usize) void {
@@ -401,7 +398,9 @@ fn updateMap(_: ?*pb.Layer, ctx: ?*pb.GContext) callconv(.c) void {
         .origin = .{ .x = 109, .y = 71 },
         .size = .{ .h = MAP_HEIGHT, .w = MAP_WIDTH },
     };
-    if (s.cur_map) |cur| pb.graphics_draw_bitmap_in_rect(ctx, s.map_bitmaps[cur], dest);
+    if (s.cur_map) |cur| {
+        if (s.map_bitmaps[cur]) |map| pb.graphics_draw_bitmap_in_rect(ctx, map, dest);
+    }
 }
 
 fn forceUpdate() void {
@@ -424,35 +423,23 @@ fn forceUpdate() void {
 }
 
 fn buildUi(window: ?*pb.Window) void {
-    const window_layer = pb.window_get_root_layer(window) orelse {
-        pog.err(@src(), "buildUi: window has no root layer", .{});
-        return;
-    };
+    const window_layer = pb.window_get_root_layer(window) orelse return;
     const bounds = pb.layer_get_bounds(window_layer);
 
     s.is_24h = settings.settingsIs24Hour();
     s.date_format = settings.settingsGetDateFormat();
 
     s.bg_bitmap = pb.gbitmap_create_with_resource(@intFromEnum(presource.RESOURCE_IDS.IMAGE_BG));
-    s.bg_bitmap_layer = pb.bitmap_layer_create(bounds) orelse {
-        pog.err(@src(), "buildUi: bitmap_layer_create failed", .{});
-        return;
-    };
+    s.bg_bitmap_layer = pb.bitmap_layer_create(bounds) orelse return;
 
     pb.bitmap_layer_set_compositing_mode(s.bg_bitmap_layer, pb.GCompOpSet);
     pb.bitmap_layer_set_bitmap(s.bg_bitmap_layer, s.bg_bitmap);
 
-    const bg_layer = try pebble.layer.ofBitmap(s.bg_bitmap_layer) catch {
-        pog.err(@src(), "buildUi: bg_bitmap_layer has no layer", .{});
-        return;
-    };
+    const bg_layer = pebble.layer.ofBitmap(s.bg_bitmap_layer) catch return;
     pebble.layer.addChild(window_layer, bg_layer);
 
     // Faded/ghost LCD layer
-    s.faded_layer = pb.layer_create(bounds) orelse {
-        pog.err(@src(), "buildUi: layer_create failed", .{});
-        return;
-    };
+    s.faded_layer = pb.layer_create(bounds) orelse return;
     pb.layer_set_update_proc(s.faded_layer, updateFaded);
     pebble.layer.addChild(window_layer, s.faded_layer);
 
@@ -486,24 +473,15 @@ fn buildUi(window: ?*pb.Window) void {
         .origin = .{ .x = PM.x, .y = PM.y },
         .size = .{ .h = PM_HEIGHT, .w = PM_WIDTH },
     };
-    s.pm_bitmap_layer = pb.bitmap_layer_create(pm_rect) orelse {
-        pog.err(@src(), "buildUi: bitmap_layer_create failed", .{});
-        return;
-    };
+    s.pm_bitmap_layer = pb.bitmap_layer_create(pm_rect) orelse return;
 
     pb.bitmap_layer_set_compositing_mode(s.pm_bitmap_layer, pb.GCompOpSet);
     pb.bitmap_layer_set_bitmap(s.pm_bitmap_layer, s.pm_bitmap);
 
-    const pm_layer = pebble.layer.ofBitmap(s.pm_bitmap_layer) catch {
-        pog.err(@src(), "buildUi: pm_bitmap_layer has no layer", .{});
-        return;
-    };
+    const pm_layer = pebble.layer.ofBitmap(s.pm_bitmap_layer) catch return;
     pebble.layer.addChild(window_layer, pm_layer);
 
-    s.date_layer = pb.layer_create(bounds) orelse {
-        pog.err(@src(), "buildUi: layer_create failed", .{});
-        return;
-    };
+    s.date_layer = pb.layer_create(bounds) orelse return;
     pb.layer_set_update_proc(s.date_layer, updateDate);
     pebble.layer.addChild(window_layer, s.date_layer);
     s.s_digits_bitmap = pb.gbitmap_create_with_resource(@intFromEnum(presource.RESOURCE_IDS.TYPE_S));
@@ -516,10 +494,7 @@ fn buildUi(window: ?*pb.Window) void {
 
     s.dash_bitmap = pb.gbitmap_create_with_resource(@intFromEnum(presource.RESOURCE_IDS.SPRITE_DASH));
 
-    s.sec_layer = pb.layer_create(bounds) orelse {
-        pog.err(@src(), "buildUi: layer_create failed", .{});
-        return;
-    };
+    s.sec_layer = pb.layer_create(bounds) orelse return;
     pb.layer_set_update_proc(s.sec_layer, updateSec);
     pebble.layer.addChild(window_layer, s.sec_layer);
     s.m_digits_bitmap = pb.gbitmap_create_with_resource(@intFromEnum(presource.RESOURCE_IDS.TYPE_M));
@@ -529,10 +504,7 @@ fn buildUi(window: ?*pb.Window) void {
         s.m_digits_bitmaps[i] = pb.gbitmap_create_as_sub_bitmap(s.m_digits_bitmap, coords);
     }
 
-    s.min_layer = pb.layer_create(bounds) orelse {
-        pog.err(@src(), "buildUi: layer_create failed", .{});
-        return;
-    };
+    s.min_layer = pb.layer_create(bounds) orelse return;
     pb.layer_set_update_proc(s.min_layer, updateMin);
     pebble.layer.addChild(window_layer, s.min_layer);
     s.l_digits_bitmap = pb.gbitmap_create_with_resource(@intFromEnum(presource.RESOURCE_IDS.TYPE_L));
@@ -542,10 +514,7 @@ fn buildUi(window: ?*pb.Window) void {
         s.l_digits_bitmaps[i] = pb.gbitmap_create_as_sub_bitmap(s.l_digits_bitmap, coords);
     }
 
-    s.bat_layer = pb.layer_create(bounds) orelse {
-        pog.err(@src(), "buildUi: layer_create failed", .{});
-        return;
-    };
+    s.bat_layer = pb.layer_create(bounds) orelse return;
     pb.layer_set_update_proc(s.bat_layer, battery_update_proc);
     pebble.layer.addChild(window_layer, s.bat_layer);
     s.bat_bitmap = pb.gbitmap_create_with_resource(@intFromEnum(presource.RESOURCE_IDS.SPRITE_BAT));
@@ -558,47 +527,29 @@ fn buildUi(window: ?*pb.Window) void {
     s.day_font = pb.fonts_load_custom_font(pb.resource_get_handle(@intFromEnum(presource.RESOURCE_IDS.FONT_DSEG_14)));
 
     // Day-of-week ghost
-    s.day_faded_layer = pb.text_layer_create(DAY_TEXT_RECT) orelse {
-        pog.err(@src(), "buildUi: text_layer_create failed", .{});
-        return;
-    };
+    s.day_faded_layer = pb.text_layer_create(DAY_TEXT_RECT) orelse return;
     pb.text_layer_set_font(s.day_faded_layer, s.day_font);
     pb.text_layer_set_background_color(s.day_faded_layer, pb.GColorClear);
     pb.text_layer_set_text_color(s.day_faded_layer, FADED_GREEN);
     pb.text_layer_set_text_alignment(s.day_faded_layer, pb.GTextAlignmentCenter);
     pb.text_layer_set_text(s.day_faded_layer, "~~~");
-    const day_faded_layer = pebble.layer.ofText(s.day_faded_layer) orelse {
-        pog.err(@src(), "buildUi: day_faded_layer has no layer", .{});
-        return;
-    };
+    const day_faded_layer = pebble.layer.ofText(s.day_faded_layer) catch return;
     pebble.layer.addChild(window_layer, day_faded_layer);
 
-    s.day_layer = pb.text_layer_create(DAY_TEXT_RECT) orelse {
-        pog.err(@src(), "buildUi: text_layer_create failed", .{});
-        return;
-    };
+    s.day_layer = pb.text_layer_create(DAY_TEXT_RECT) orelse return;
     pb.text_layer_set_font(s.day_layer, s.day_font);
     pb.text_layer_set_background_color(s.day_layer, pb.GColorClear);
     pb.text_layer_set_text_color(s.day_layer, pb.GColorBlack);
     pb.text_layer_set_text_alignment(s.day_layer, pb.GTextAlignmentCenter);
 
-    const day_layer = pebble.layer.ofText(s.day_layer) orelse {
-        pog.err(@src(), "buildUi: day_layer has no layer", .{});
-        return;
-    };
+    const day_layer = pebble.layer.ofText(s.day_layer) catch return;
     pebble.layer.addChild(window_layer, day_layer);
 
-    s.clock_layer = pb.layer_create(bounds) orelse {
-        pog.err(@src(), "buildUi: layer_create failed", .{});
-        return;
-    };
+    s.clock_layer = pb.layer_create(bounds) orelse return;
     pb.layer_set_update_proc(s.clock_layer, clock_update_proc);
     pebble.layer.addChild(window_layer, s.clock_layer);
 
-    s.map_layer = pb.layer_create(bounds) orelse {
-        pog.err(@src(), "buildUi: layer_create failed", .{});
-        return;
-    };
+    s.map_layer = pb.layer_create(bounds) orelse return;
     pb.layer_set_update_proc(s.map_layer, updateMap);
     pebble.layer.addChild(window_layer, s.map_layer);
     s.map_bitmap = pb.gbitmap_create_with_resource(@intFromEnum(presource.RESOURCE_IDS.SPRITE_MAP));
@@ -617,9 +568,7 @@ fn window_load(window: ?*pb.Window) callconv(.c) void {
         return;
     }
 
-    messaging.messagingInit(forceUpdate) catch |err| {
-        pog.err(@src(), "app_message_open failed: {t}", .{err});
-    };
+    messaging.messagingInit(forceUpdate) catch {};
 
     pb.battery_state_service_subscribe(battery_callback);
     battery_callback(pb.battery_state_service_peek());
