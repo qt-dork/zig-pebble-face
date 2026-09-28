@@ -1,11 +1,11 @@
 // Legacy time-zone table. This table is only used before getting the offset from settings.
 
-const pebble = @import("pebble");
+const pb = @import("pebble");
 
 const settings = @import("settings.zig");
 
 // time must be in utc
-pub fn offsetTime(from: pebble.tm, tz: settings.TimeZoneOptions) pebble.tm {
+pub fn offsetTime(from: pb.tm, tz: settings.TimeZoneOptions) pb.tm {
     if (settings.settingsGetTimeZoneOffsetMinutes()) |minutes| {
         return newTmOffset(from, minutes);
     }
@@ -27,7 +27,7 @@ pub fn offsetTime(from: pebble.tm, tz: settings.TimeZoneOptions) pebble.tm {
         .Madrid, .Paris, .Rome, .Berlin, .Stockholm => return newTm(from, 1, 0),
         .Athen, .Cairo, .Jerusalem => return newTm(from, 2, 0),
         .Moscow, .Jeddah => return newTm(from, 3, 0),
-        .Tehran => return newTm(from, 2, 30),
+        .Tehran => return newTm(from, 3, 30),
         .Dubai => return newTm(from, 4, 0),
         .Kabul => return newTm(from, 4, 30),
         .Karachi => return newTm(from, 5, 0),
@@ -72,30 +72,21 @@ pub fn mapIndex(tz: settings.TimeZoneOptions) ?usize {
     }
 }
 
-fn newTm(from: pebble.tm, gmtoff: c_int, minoff: c_int) pebble.tm {
+fn shiftMinutes(from: pb.tm, offset_minutes: c_int) pb.tm {
+    const day_minutes = 24 * 60;
+    const minute_of_day = @mod(from.tm_hour * 60 + from.tm_min + offset_minutes, day_minutes);
+
     var mod = from;
-    mod.tm_gmtoff = gmtoff;
-    mod.tm_hour = wrappingAddHour(mod.tm_hour, gmtoff);
-    mod.tm_min = wrappingAddMin(mod.tm_min, minoff);
+    mod.tm_gmtoff = offset_minutes * 60;
+    mod.tm_hour = @divTrunc(minute_of_day, 60);
+    mod.tm_min = @rem(minute_of_day, 60);
     return mod;
 }
 
-fn newTmOffset(from: pebble.tm, minutes: i16) pebble.tm {
-    const total: c_int = @intCast(minutes);
-    const hours: c_int = @divTrunc(total, 60);
-    const mins: c_int = @rem(total, 60);
-
-    var mod = from;
-    mod.tm_gmtoff = total * 60;
-    mod.tm_hour = wrappingAddHour(mod.tm_hour, hours);
-    mod.tm_min = wrappingAddMin(mod.tm_min, mins);
-    return mod;
+fn newTm(from: pb.tm, gmtoff_hours: c_int, minoff: c_int) pb.tm {
+    return shiftMinutes(from, gmtoff_hours * 60 + minoff);
 }
 
-fn wrappingAddHour(lhs: c_int, rhs: c_int) c_int {
-    return @rem((lhs + 24) + rhs, 24);
-}
-
-fn wrappingAddMin(lhs: c_int, rhs: c_int) c_int {
-    return @rem((lhs + 60) + rhs, 60);
+fn newTmOffset(from: pb.tm, minutes: i16) pb.tm {
+    return shiftMinutes(from, @intCast(minutes));
 }

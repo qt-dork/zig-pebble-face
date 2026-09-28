@@ -1,6 +1,6 @@
 const std = @import("std");
 
-const pebble = @import("pebble");
+const sdk = @import("pebble");
 const presource = @import("pebble_appids");
 
 // const SETTINGS_SECONDS_KEY = 1;
@@ -101,7 +101,7 @@ pub const Settings = struct {
 };
 
 pub fn settingsRead(key: u32) ?i32 {
-    return if (pebble.persist_exists(key)) pebble.persist_read_int(key) else null;
+    return if (sdk.persist_exists(key)) sdk.persist_read_int(key) else null;
 }
 
 const PERSIST_SECONDS: u32 = @intFromEnum(presource.MESSAGE_KEYS.SettingsEnableSeconds);
@@ -111,7 +111,7 @@ const PERSIST_DATE_FORMAT: u32 = @intFromEnum(presource.MESSAGE_KEYS.SettingsDat
 
 pub fn settingsSetSeconds(option: SecondsOptions) void {
     const value: i32 = @intCast(@intFromEnum(option));
-    _ = pebble.persist_write_int(PERSIST_SECONDS, value);
+    _ = sdk.persist_write_int(PERSIST_SECONDS, value);
 }
 
 pub fn settingsGetSeconds() SecondsOptions {
@@ -122,7 +122,7 @@ pub fn settingsGetSeconds() SecondsOptions {
 pub fn settingsSetTimeZone(option: TimeZoneOptions) void {
     const value: i32 = @intCast(@intFromEnum(option));
 
-    _ = pebble.persist_write_int(PERSIST_TIME_ZONE, value);
+    _ = sdk.persist_write_int(PERSIST_TIME_ZONE, value);
 }
 
 pub fn settingsGetTimeZone() TimeZoneOptions {
@@ -131,17 +131,21 @@ pub fn settingsGetTimeZone() TimeZoneOptions {
 }
 
 pub fn settingsSetTimeZoneOffsetMinutes(minutes: i16) void {
-    _ = pebble.persist_write_int(PERSIST_TIME_ZONE_OFFSET_MINUTES, minutes);
+    _ = sdk.persist_write_int(PERSIST_TIME_ZONE_OFFSET_MINUTES, minutes);
+}
+
+pub fn settingsClearTimeZoneOffsetMinutes() void {
+    _ = sdk.persist_delete(PERSIST_TIME_ZONE_OFFSET_MINUTES);
 }
 
 pub fn settingsGetTimeZoneOffsetMinutes() ?i16 {
     const raw = settingsRead(PERSIST_TIME_ZONE_OFFSET_MINUTES) orelse return null;
-    return @intCast(raw);
+    return std.math.cast(i16, raw);
 }
 
 pub fn settingsSetDateFormat(option: DateFormatOptions) void {
     const value: i32 = @intCast(@intFromEnum(option));
-    _ = pebble.persist_write_int(PERSIST_DATE_FORMAT, value);
+    _ = sdk.persist_write_int(PERSIST_DATE_FORMAT, value);
 }
 
 pub fn settingsGetDateFormat() DateFormatOptions {
@@ -151,5 +155,5 @@ pub fn settingsGetDateFormat() DateFormatOptions {
 
 // System setting
 pub fn settingsIs24Hour() bool {
-    return pebble.clock_is_24h_style();
+    return sdk.clock_is_24h_style();
 }

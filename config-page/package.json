@@ -2,7 +2,7 @@
   "name": "royale-config-page",
   "version": "1.0.0",
   "type": "module",
-  "description": "Configuration page for Time Traveler Pebble app",
+  "description": "Configuration page for the Royale Pebble watchface",
   "scripts": {
     "dev": "vite --host",
     "build": "vite build",

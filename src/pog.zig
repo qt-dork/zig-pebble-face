@@ -6,14 +6,14 @@ const level = std.options.log_level;
 const scope_levels = std.options.log_scope_levels;
 pub const builtin = @import("builtin");
 
-pub const pebble = @import("pebble");
+pub const pb = @import("pebble");
 
 pub const Level = enum(c_int) {
-    err = pebble.APP_LOG_LEVEL_ERROR,
-    warn = pebble.APP_LOG_LEVEL_WARNING,
-    info = pebble.APP_LOG_LEVEL_INFO,
-    debug = pebble.APP_LOG_LEVEL_DEBUG,
-    debug_verbose = pebble.APP_LOG_LEVEL_DEBUG_VERBOSE,
+    err = pb.APP_LOG_LEVEL_ERROR,
+    warn = pb.APP_LOG_LEVEL_WARNING,
+    info = pb.APP_LOG_LEVEL_INFO,
+    debug = pb.APP_LOG_LEVEL_DEBUG,
+    debug_verbose = pb.APP_LOG_LEVEL_DEBUG_VERBOSE,
 
     pub fn asText(comptime self: Level) []const u8 {
         return switch (self) {
@@ -44,7 +44,7 @@ pub fn defaultLog(comptime src: std.builtin.SourceLocation, comptime message_lev
     const res = std.fmt.bufPrintZ(&buffer, format, args) catch return;
     var name_buffer: [15]u8 = undefined;
     const name_res = if (src.file.len <= 15) src.file else std.fmt.bufPrintZ(&name_buffer, "{s}", .{src.file[0..15]}) catch return;
-    pebble.app_log(@intFromEnum(message_level), name_res, src.line, res);
+    pb.app_log(@intFromEnum(message_level), name_res, src.line, res);
 }
 
 /// Returns a scoped logging namespace that logs all messages using the scope

@@ -31,8 +31,6 @@ zig-out/
 *.o
 zig-pkg/
 
-# Dummy build
-dummy_royale/build/
 node_modules/
 package-lock.json
 .lock-waf*
