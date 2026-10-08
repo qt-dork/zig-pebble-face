@@ -1,6 +1,6 @@
 import { sendTimezoneData } from "./timezone-data.ts";
 
-const configDataUri = 'http://localhost:3000/royale/';
+const configDataUri = 'https://qt-dork.github.io/zig-pebble-face/';
 const DST_CHECK_INTERVAL_MS = 30 * 60 * 1000;
 
 let dstCheckTimer: number | null = null;
