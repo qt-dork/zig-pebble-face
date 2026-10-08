@@ -32,5 +32,4 @@ zig-out/
 zig-pkg/
 
 node_modules/
-package-lock.json
 .lock-waf*
