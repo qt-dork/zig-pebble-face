@@ -2,7 +2,7 @@ import { defineConfig } from 'vite';
 
 export default defineConfig({
   root: '.',
-  base: '/royale/',
+  base: '/zig-pebble-face/',
   build: {
     outDir: 'dist'
   },
